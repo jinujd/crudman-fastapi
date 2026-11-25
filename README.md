@@ -9,9 +9,8 @@
   <br/>
 </p>
 
-> **Status: pre-release (0.0.x).** This README describes the API planned for **0.1.0**. Implemented and
-> unit-tested so far: query parsing (pagination, sorting, filters, keyword), the response envelope and
-> section naming. See [Roadmap](#roadmap) for what is still being built.
+> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite,
+> except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
 
@@ -359,6 +358,10 @@ CrudmanOptions(cache=CacheOptions(enabled=True, ttl=60, invalidate_lists_on_writ
 ListAction(enable_cache={"ttl": 30})
 ```
 
+Writes invalidate only the written section's cache entries. For a shared cache, pass
+`CacheOptions(enabled=True, backend=RedisCache(url="redis://..."))` (needs the `redis` extra; not yet tested
+against a live server).
+
 ## Import / Export
 
 - `x-content-type: csv` (or `Accept: text/csv`, or `?format=csv`) on list/details returns CSV; pagination
@@ -378,27 +381,35 @@ ListAction(enable_cache={"ttl": 30})
 | fastest-validator rules | Pydantic, or the same rule dicts in `get_final_validation_rules` |
 | `UseCrud({ models: [Tag] })` (pluralised class name) | `crud_router([Tag])` (table name) |
 
+## Example app
+
+A runnable FastAPI + SQLAlchemy + SQLite app lives in
+[`examples/fastapi_sqlalchemy_sqlite`](examples/fastapi_sqlalchemy_sqlite):
+
+```bash
+cd examples/fastapi_sqlalchemy_sqlite
+pip install -r requirements.txt
+python seed.py
+uvicorn app.main:app --reload      # http://localhost:8000/docs
+```
+
 ## Roadmap
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| 1 | Query parsing, response envelope, section naming | ✅ done, unit-tested |
-| 2 | SQLAlchemy adapter | ⏳ |
-| 3 | Validation (Pydantic) | ⏳ |
-| 4 | Routing + OpenAPI (`crud_router`, `crud.register`, decorators) | ⏳ |
-| 5 | Hooks, context, `call_action`, error modes | ⏳ |
-| 6 | Access control | ⏳ |
-| 7 | Cache | ⏳ |
-| 8 | Uploads | ⏳ |
-| 9 | Export + bulk | ⏳ |
-| 10 | Shorthand, docs, example app | ⏳ |
+| 1–6 | Query parsing, SQLAlchemy adapter, validation, routing + OpenAPI, hooks/context, access control | ✅ |
+| 7 | Cache (memory; Redis adapter untested against a live server) | ✅ |
+| 8 | Uploads (local disk; S3 adapter untested against S3) | ✅ |
+| 9 | CSV/Excel export, bulk import/delete | ✅ |
+| 10 | Example app, docs | ✅ |
+| next | PyPI release; sync sessions; model specs without an ORM class | ⏳ |
 
 ## Development
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-pytest            # unit tests
+pytest            # unit + end-to-end tests (SQLite)
 ruff check src tests
 mypy src
 cd website && npm install && npm start   # docs at http://localhost:3000

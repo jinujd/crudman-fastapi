@@ -4,9 +4,6 @@ title: Context
 
 # Context (`ctx`)
 
-:::info Planned for 0.1.0
-:::
-
 Every hook receives `ctx`, built for each request.
 
 ## Reserved keys (always present)

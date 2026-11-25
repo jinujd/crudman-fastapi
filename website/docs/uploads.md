@@ -4,9 +4,6 @@ title: File uploads
 
 # File uploads
 
-:::info Planned (phase 8)
-:::
-
 ## Shorthand
 
 ```python
@@ -25,6 +22,9 @@ Clients can send:
 
 - multipart: field `avatar` as a file
 - JSON base64: `{"avatar": "data:image/png;base64,iVBORw0..."}`
+
+A plain string that is not a data URL (for example the existing filename sent back on update) is left as
+is. On create, a single file field is required.
 
 Shorthand suffixes:
 

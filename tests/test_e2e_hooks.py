@@ -265,3 +265,19 @@ async def test_hook_exception_rolls_back(env: Env) -> None:
         with pytest.raises(RuntimeError):
             await c.post("/countries", json={"name": "India"})
     assert await env.scalar(select(Country.id)) is None
+
+
+async def test_orm_adapter_override(env: Env) -> None:
+    from crudman import SqlAlchemyAdapter
+
+    class Tracking(SqlAlchemyAdapter):
+        creates = 0
+
+        async def create(self, session: Any, model: Any, data: Any) -> Any:
+            Tracking.creates += 1
+            return await super().create(session, model, data)
+
+    env.app_with(crud_router(Country, config={"orm": Tracking()}))
+    async with env.client() as c:
+        assert (await c.post("/countries", json={"name": "India"})).status_code == 200
+    assert Tracking.creates == 1

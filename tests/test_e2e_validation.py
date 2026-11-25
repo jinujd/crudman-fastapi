@@ -148,3 +148,25 @@ async def test_uniqueness_set_at_section_level(env: Env) -> None:
     async with env.client() as c:
         await c.post("/users", json={"name": "A", "email": "a@x.io"})
         assert (await c.post("/users", json={"name": "B", "email": "a@x.io"})).status_code == 400
+
+
+async def test_custom_validator_adapter(env: Env) -> None:
+    class UpperValidator:
+        """Minimal validator adapter: names must be upper case."""
+
+        def generate_rules(self, model: Any, is_update: bool, write_attributes: Any) -> dict[str, Any]:
+            return {"name": "required"}
+
+        def build(self, name: str, rules: Any, is_update: bool) -> Any:
+            return rules
+
+        def validate(self, schema: Any, data: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+            value = str(data.get("name", ""))
+            if not value.isupper():
+                return {}, [{"type": "upper", "field": "name", "message": "Name must be upper case"}]
+            return {"name": value}, []
+
+    env.app_with(crud_router(Company, config={"validator": UpperValidator()}))
+    async with env.client() as c:
+        assert (await c.post("/companies", json={"name": "acme"})).json()["errors"][0]["type"] == "upper"
+        assert (await c.post("/companies", json={"name": "ACME"})).json()["data"]["name"] == "ACME"

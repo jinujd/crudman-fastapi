@@ -4,10 +4,6 @@ title: Response format
 
 # Response format
 
-:::tip Implemented
-The default formatter is implemented and unit-tested (`crudman.response`).
-:::
-
 The envelope is identical to crudman-nestjs.
 
 ## List

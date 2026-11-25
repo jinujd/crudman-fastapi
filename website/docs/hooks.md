@@ -4,9 +4,6 @@ title: Hooks
 
 # Hooks
 
-:::info Planned for 0.1.0
-:::
-
 All hooks are optional and may be plain functions or `async def`. The subject comes first and
 [`ctx`](./context.md) last. A hook at section level applies to every action; a hook inside an action
 block replaces it for that action.

@@ -217,7 +217,7 @@ When a section is mounted with `crud_router(Company, config=companies)`, the `mo
 | `enable_cache` | `True` or `{"ttl": int, "key": fn}` |
 | `uploadable`, `upload`, `upload_defaults` | file uploads (3.8) |
 | `session`, `orm`, `validator` | per-section overrides (multi-DB, custom adapters) |
-| `openapi={"enabled": False, "tags": [...]}` | per-section docs control |
+| `openapi={"enabled": False}` | hide the section from the docs (tags come from `crud_router(..., tags=...)`) |
 
 ### 3.4 Step 4: mount it (where the routes live)
 
@@ -509,7 +509,7 @@ These all behave as in NestJS:
 
 | # | Phase | What gets built | Done when |
 | --- | --- | --- | --- |
-| 0 | Scaffolding | pyproject (hatchling), uv, ruff, mypy, pytest, GitHub Actions CI (3.10–3.13) | CI is green |
+| 0 | Scaffolding ✅ | pyproject (hatchling), uv, ruff, mypy, pytest, GitHub Actions CI (3.10–3.13) | CI is green |
 | 1 | Core types + query parser | `options.py` (all keys in 3.3, with `common` alias and 3-layer merge), `registry.py` (deep-merge), `context.py`, `query.py` (port of `query-utils.ts`: camel/snake normalisation, `query_param_names`, sort defaults to desc, `per_page=0`/`paginate=false`, `max_per_page`, `is_default_enabled`), `response.py` | `query-utils.test.ts` + `response-formatter.test.ts` ported and passing |
 | 2 | SQLAlchemy adapter | list / details / create / update / delete / save; default sort; `order_by`; `conditions`; relations + `selectinload`; read attributes; keyword with dot paths (depth ≤ 3, `DISTINCT` on joins); uniqueness (or/and, excludes current record, only for fields present in the body); 404 for missing records | `typeorm-adapter.test.ts` ported and passing on aiosqlite |
 | 3 | Validation | model → Pydantic create/update models (types, nullable, length, defaults; PK, server defaults and `created_at`/`updated_at`/`deleted_at` excluded); create rejects unknown fields, update drops them; non-null strings need min length 1 on create; rule-dict → Pydantic converter; write include/exclude | `validator-adapter.test.ts` ported |
@@ -599,77 +599,80 @@ We implement each of these properly, because the README already promises them to
 
 ---
 
-## 8. Final feature list (crudman-fastapi 1.0)
+## 8. Final feature list (crudman-fastapi 0.1)
 
-Status key: ✅ built and unit-tested in the repo today · 🔜 planned (phase number in brackets).
+Status key: ✅ built and covered by tests (end-to-end on SQLite) · ⚠️ built, but not tested against a live service.
 
 ### Defining CRUDs
-- 🔜 `crud_router(Model)`: the model is the only required argument; the section name defaults to the table name [4]
-- 🔜 `crud_router(Model, "name", config)`: optional section name and settings, positional or keyword [4]
-- 🔜 Multi-model routers: `crud_router([Tag, Category, (Company, "orgs", cfg)])` [4]
-- 🔜 Class-based `CrudController` for people coming from NestJS [4]
-- 🔜 `crud.register(...)` + `@crud.list/details/create/update/delete/save("name")` on custom paths [4]
-- 🔜 `CrudmanService` for your own handlers; `call_action(section, action, ...)` across sections [5]
-- 🔜 Settings as a typed `Section(...)` or a plain dict, validated at startup [1]
-- 🔜 Three settings layers: global defaults → section → action; `common` accepted as an alias [1]
+- ✅ `crud_router(Model)`: the model is the only required argument; the section name defaults to the table name
+- ✅ `crud_router(Model, "name", config)`: optional section name and settings, positional or keyword
+- ✅ Multi-model routers: `crud_router([Tag, Category, (Company, "orgs", cfg)])`
+- ✅ Class-based `CrudController` for people coming from NestJS
+- ✅ `crud.register(...)` + `@crud.list/details/create/update/delete/save("name")` on custom paths
+- ✅ `CrudmanService` for your own handlers; `call_action(section, action, ...)` across sections
+- ✅ Settings as a typed `Section(...)` or a plain dict, validated at startup
+- ✅ Three settings layers: global defaults → section → action; `common` accepted as an alias
 - ✅ Section naming from the table name; `path_style` kebab / snake / camel / pascal; default path `/{section}`
-- 🔜 Optional prefix; `route_prefix` global option; `path=` override; `actions=` filter [4]
-- 🔜 PATCH (partial update, default) or PUT [4]
+- ✅ Optional prefix; `route_prefix` global option; `path=` override; `actions=` filter
+- ✅ PATCH (partial update, default) or PUT
 
 ### Endpoints
-- 🔜 list, details, create, update, delete [2, 4]
-- 🔜 save (upsert by `record_selection_field`), opt-in [2]
-- 🔜 bulk import (JSON/CSV; policies `upsert`, `insert_only`, `update_only`, `ignore_on_conflict`, `replace`; `batch_size`, `dry_run`, `stop_on_error`) and bulk delete [9]
-- 🔜 `record_selection_field` (e.g. slug) also names the path param [2]
+- ✅ list, details, create, update, delete
+- ✅ save (upsert by `record_selection_field`), opt-in
+- ✅ bulk import (JSON/CSV; policies `upsert`, `insert_only`, `update_only`, `ignore_on_conflict`, `replace`; `batch_size`, `dry_run`, `stop_on_error`) and bulk delete
+- ✅ `record_selection_field` (e.g. slug) also names the path param
 
 ### Querying (list)
 - ✅ Pagination: `page`, `perPage`/`per_page`, `paginate=false`, `perPage=0`, `max_per_page`, `is_default_enabled`, `is_pagination_enabled`, `is_disable_allowed`
 - ✅ Sorting: `sort.<field>=asc|desc`, multi-sort, whitelist, empty value means desc
 - ✅ Filters: equals, `.like`, `.min`, `.max`, `.gt`, `.lt`, `.between`; whitelist; `filters[]` echoed with `param`
 - ✅ Renameable query params (`query_param_names`); camelCase and snake_case keys both accepted
-- 🔜 Keyword search across columns and relation dot paths (depth ≤ 3), case-insensitive by default, `min_length` [2]
-- 🔜 Default sort `created_at DESC, pk DESC`; `order_by`; fixed `conditions` [2]
-- 🔜 Filters and keyword always ANDed, in a single query path (fixes the NestJS OR bug) [2]
+- ✅ Keyword search across columns and relation dot paths (depth ≤ 3), case-insensitive by default, `min_length`
+- ✅ Default sort `created_at DESC, pk DESC`; `order_by`; fixed `conditions`
+- ✅ Filters and keyword always ANDed, in a single query path (fixes the NestJS OR bug)
 
 ### Data shaping
-- 🔜 Relations: `"*"` (default), list, include / exclude, `get_relations(ctx)`; eager-loaded [2]
-- 🔜 Attributes: separate read and write include / exclude [2, 3]
+- ✅ Relations: `"*"` (default), list, include / exclude, `get_relations(ctx)`; eager-loaded
+- ✅ Attributes: separate read and write include / exclude
 - ✅ Standard response envelope (`data`, `errors`, `success`, `pagination`, `filters`, `sorting`, `meta`), identical to NestJS
-- 🔜 Global `response_formatter`, per-action `response_handler`, `additional_response` / `get_additional_response` into `meta` [5]
-- 🔜 `field_alias="camel"` for front-ends written against the NestJS version [2]
+- ✅ Global `response_formatter`, per-action `response_handler`, `additional_response` / `get_additional_response` into `meta`
+- ✅ `field_alias="camel"` for front-ends written against the NestJS version
 
 ### Validation
-- 🔜 Pydantic models generated from the SQLAlchemy model (types, nullability, length, defaults) [3]
-- 🔜 Create rejects unknown fields; update drops them; PK and timestamp columns skipped [3]
-- 🔜 `get_final_validation_rules` returning a Pydantic class or a fastest-validator-style dict [3]
-- 🔜 Uniqueness checks (`or` / `and`), excluding the current record and checking only fields sent [2]
-- 🔜 Errors as `{type, field, message}` with HTTP 400 [3]
+- ✅ Pydantic models generated from the SQLAlchemy model (types, nullability, length, defaults)
+- ✅ Create rejects unknown fields; update drops them; PK and timestamp columns skipped
+- ✅ `get_final_validation_rules` returning a Pydantic class or a fastest-validator-style dict
+- ✅ Uniqueness checks (`or` / `and`), excluding the current record and checking only fields sent
+- ✅ Errors as `{type, field, message}` with HTTP 400
 
 ### Hooks and context
-- 🔜 `on_before_action`, `on_before_query` (receives a SQLAlchemy `Select`), `on_after_fetch`, `on_before_validate`, `get_final_validation_rules`, `on_after_validate`, `on_after_action` (its return value replaces the response) [5]
-- 🔜 `ctx` with service, session, repository helper, section, action, model, request, identity, params, query, body, files [5]
-- 🔜 Context builders: dict (with `Depends`), function, `get_hook_context`; reserved keys protected [5]
-- 🔜 `custom_implementation` to fully override an action [5]
+- ✅ `on_before_action`, `on_before_query` (receives a SQLAlchemy `Select`), `on_after_fetch`, `on_before_validate`, `get_final_validation_rules`, `on_after_validate`, `on_after_action` (its return value replaces the response)
+- ✅ `ctx` with service, session, repository helper, section, action, model, request, identity, params, query, body, files
+- ✅ Context builders: dict (with `Depends`), function, `get_hook_context`; reserved keys protected
+- ✅ `custom_implementation` to fully override an action
 
 ### Access control
-- 🔜 `identity_accessor`, `role_checker`, `required_roles`, `ownership` (enforced, unlike in NestJS) [6]
+- ✅ `identity_accessor`, `role_checker`, `required_roles`, `ownership` (enforced, unlike in NestJS)
 
 ### Uploads
-- 🔜 Multipart and base64; shorthand `uploadable={"avatar": "image"}` with `[]`, `:base64`, `:blob` [8]
-- 🔜 Storage modes `filename`, `filename_in_field`, `base64`, `blob`; Local and S3 storage [8]
-- 🔜 About 30 presets (image, avatar, video, audio, pdf, doc, spreadsheet, text, csv, xml, html, json, archive, binary, any) [8]
-- 🔜 Size / MIME / extension / avatar dimension checks; `delete_on_replace`, `key_pattern`, append mode [8]
-- 🔜 `meta.baseUrls`, `x-file-url: full|key_only` [8]
+- ✅ Multipart and base64; shorthand `uploadable={"avatar": "image"}` with `[]`, `:base64`, `:blob`
+- ✅ Storage modes `filename`, `filename_in_field`, `base64`, `blob`; local disk storage
+- ⚠️ S3 storage (`S3Storage`)
+- ✅ About 30 presets (image, avatar, video, audio, pdf, doc, spreadsheet, text, csv, xml, html, json, archive, binary, any)
+- ✅ Size / MIME / extension / avatar dimension checks; `delete_on_replace`, `key_pattern`, append mode
+- ✅ `meta.baseUrls`, `x-file-url: full|key_only`
 
 ### Output, cache, docs
-- 🔜 CSV and Excel export via `x-content-type`, `Accept` or `?format=`; `X-Pagination-*` headers [9]
-- 🔜 TTL cache per action with custom keys; per-section invalidation on writes; Redis adapter [7]
-- 🔜 OpenAPI: typed request bodies (json/form/multipart), query params, envelope schemas, tags, operation ids [4]
-- 🔜 Error mode `throw_on_error`; `strict_status` (201 on create, 404 on missing) [5]
-- 🔜 Transactions around writes, so `call_action` inside hooks shares the transaction [5]
-- 🔜 Pluggable adapters: `OrmAdapter`, `ValidatorAdapter`, `CacheAdapter`, `FileStorageAdapter` [1]
+- ✅ CSV and Excel export via `x-content-type`, `Accept` or `?format=`; `X-Pagination-*` headers
+- ✅ TTL cache per action with custom keys; per-section invalidation on writes
+- ⚠️ Redis cache adapter (`RedisCache`)
+- ✅ OpenAPI: typed request bodies (json/form/multipart), query params, envelope schemas, tags, operation ids
+- ✅ Error mode `throw_on_error`; `strict_status` (201 on create, 404 on missing)
+- ✅ Transactions around writes, so `call_action` inside hooks shares the transaction
+- ✅ Pluggable adapters: `OrmAdapter`, `ValidatorAdapter`, `CacheAdapter`, `FileStorageAdapter`
 
 ### Project
 - ✅ README in the crudman-nestjs style
 - ✅ Docusaurus documentation site (`website/`)
-- ✅ Unit test suite (pytest) for the modules built so far; it grows with each phase
+- ✅ Test suite (pytest): unit tests plus end-to-end tests on SQLite
+- ✅ Runnable example app (`examples/fastapi_sqlalchemy_sqlite`)

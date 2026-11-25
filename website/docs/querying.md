@@ -4,10 +4,6 @@ title: Querying
 
 # Querying (list)
 
-:::tip Implemented
-The query-string parser is implemented and unit-tested (`crudman.query`).
-:::
-
 ## Pagination
 
 | Parameter | Default | Notes |
@@ -50,7 +46,9 @@ GET /companies?sort.created_at=desc&sort.name=asc
 | `field.lt=value` | less than |
 | `field.between=a,b` | inclusive range |
 
-Range values may be numbers or ISO dates (`created_at.min=2024-01-01`). Unknown operators are ignored.
+Range values may be numbers or ISO dates (`created_at.min=2024-01-01`). A date-only upper bound
+(`.max` or the end of `.between`) includes that whole day. Unknown operators are ignored; a value that
+cannot be converted to the column type (for example `employees.min=lots`) returns HTTP 400.
 Only whitelisted fields are used; the default whitelist is every root column.
 
 ```text

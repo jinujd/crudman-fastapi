@@ -4,9 +4,6 @@ title: Validation
 
 # Validation
 
-:::info Planned for 0.1.0
-:::
-
 Request bodies for create, update and save are validated with Pydantic models generated from your
 SQLAlchemy model.
 

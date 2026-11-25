@@ -4,9 +4,7 @@ title: Access control
 
 # Access control
 
-:::info Planned (phase 6)
-crudman-nestjs declares these options but never enforces them. crudman-fastapi will.
-:::
+crudman-nestjs declares these options but never enforces them; crudman-fastapi does.
 
 ```python
 CrudmanOptions(
@@ -23,7 +21,10 @@ Section(
 
 - **`required_roles`:** checked before `on_before_action`; failure returns 403.
 - **`ownership`:** list and details only return owned rows; update and delete return 404 for rows you
-  do not own; create sets the field from the identity.
+  do not own; create sets the field from the identity (clients cannot set it). Requests without an
+  identity get 403.
+- Without `identity_accessor`, crudman reads `request.state.identity` or `request.state.user` (a dict, or
+  an object with `id` / `role` attributes).
 
 FastAPI dependencies also work, because crud routers accept them:
 

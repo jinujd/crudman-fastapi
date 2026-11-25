@@ -4,9 +4,6 @@ title: Custom routes
 
 # Custom routes
 
-:::info Planned for 0.1.0
-:::
-
 ## Register without auto routes
 
 `crud.register` takes the same arguments as `crud_router` but mounts nothing:
@@ -63,13 +60,19 @@ async def create_state(country_id: int, body: dict, svc: CrudmanService = Depend
     return r.to_response()
 ```
 
-Inside a hook, `ctx.service.call_action(...)` runs in the same transaction as the current request:
+Inside a hook, `ctx.service.call_action(..., ctx=ctx)` runs in the same transaction as the current
+request. If anything fails later, both writes are rolled back. Raising `CrudAbort(result)` stops the
+request and returns that result as-is.
 
 ```python
-async def create_company_first(errors, ctx):
-    if ctx.body.get("create_company"):
-        r = await ctx.service.call_action("companies", "save", body=ctx.body["company"], ctx=ctx)
-        if not r.body["success"]:
+from crudman import CrudAbort
+
+async def create_country_first(ctx):                    # on_before_action of the "states" create
+    if "country" in ctx.body:
+        r = await ctx.service.call_action("countries", "create", body=ctx.body.pop("country"), ctx=ctx)
+        if not r.ok:
             raise CrudAbort(r)
-        ctx.body["company_id"] = r.body["data"]["id"]
+        ctx.body["country_id"] = r.body["data"]["id"]
+
+crud_router(State, config={"create": {"on_before_action": create_country_first}})
 ```

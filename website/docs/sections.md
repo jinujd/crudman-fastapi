@@ -4,10 +4,6 @@ title: Sections
 
 # Sections
 
-:::info Planned for 0.1.0
-Section configuration is designed but not implemented yet.
-:::
-
 A **section** is a named CRUD resource: a model plus settings. You only need one when the defaults are
 not enough.
 
@@ -85,7 +81,7 @@ set both and they differ, startup fails.
 | `enable_cache` | `True` or `{"ttl": int, "key": fn}` |
 | `uploadable`, `upload`, `upload_defaults` | [file uploads](./uploads.md) |
 | `session`, `orm`, `validator` | per-section overrides (multi-database, custom adapters) |
-| `openapi` | `{"enabled": False, "tags": [...]}` |
+| `openapi` | `{"enabled": False}` hides the section from the docs; use `crud_router(..., tags=[...])` for tags |
 
 ## Relations
 

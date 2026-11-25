@@ -104,7 +104,8 @@ class CrudmanService:
     ) -> None:
         self.session = session
         self.registry = reg or registry
-        self.adapter = SqlAlchemyAdapter()
+        self.default_adapter = SqlAlchemyAdapter()
+        self.adapter: Any = self.default_adapter
         self.resolved_deps = dict(resolved_deps or {})
         self._rollback_only = False
 
@@ -201,27 +202,32 @@ class CrudmanService:
         entry = self.registry.get(section)
         cfg = entry.action_config(self.options.defaults, action)
         session = self.session
+        previous_adapter = self.adapter
+        self.adapter = cfg.orm or self.default_adapter  # per-section ORM adapter override
         try:
-            result = await self._run(entry, action, cfg, creq)
-        except CrudAbort as abort:
-            result = abort.result if isinstance(abort.result, CrudResult) else CrudResult(response=abort.result)
-            if not creq.nested:
-                await session.rollback()
-            return result
-        except FilterValueError as exc:
-            if not creq.nested:
-                await session.rollback()
-            result = self._error(action, 400, [_err("filter", str(exc), exc.field)])
-        except Exception:
-            if not creq.nested:
-                await session.rollback()
-            raise
-        else:
-            if not creq.nested:
-                if result.ok and not self._rollback_only:
-                    await session.commit()
-                else:
+            try:
+                result = await self._run(entry, action, cfg, creq)
+            except CrudAbort as abort:
+                result = abort.result if isinstance(abort.result, CrudResult) else CrudResult(response=abort.result)
+                if not creq.nested:
                     await session.rollback()
+                return result
+            except FilterValueError as exc:
+                if not creq.nested:
+                    await session.rollback()
+                result = self._error(action, 400, [_err("filter", str(exc), exc.field)])
+            except Exception:
+                if not creq.nested:
+                    await session.rollback()
+                raise
+            else:
+                if not creq.nested:
+                    if result.ok and not self._rollback_only:
+                        await session.commit()
+                    else:
+                        await session.rollback()
+        finally:
+            self.adapter = previous_adapter
         self._rollback_only = False
         if self.options.throw_on_error and not result.ok and not creq.nested and result.response is None:
             raise HTTPException(status_code=result.status_code, detail=result.body)
@@ -349,7 +355,7 @@ class CrudmanService:
         spec = cfg.relations
         if cfg.get_relations is not None:
             spec = await call_hook(cfg.get_relations, ctx)
-        return self.adapter.resolve_relations(model, spec)
+        return list(self.adapter.resolve_relations(model, spec))
 
     def _selection_value(self, cfg: ActionConfig, ctx: HookContext) -> Any:
         field = cfg.selection_field()

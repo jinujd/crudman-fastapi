@@ -27,11 +27,10 @@ That single call gives you:
 
 Plus OpenAPI docs, validation generated from your model, and CSV / Excel export.
 
-:::caution Pre-release
-crudman-fastapi is at **0.0.x**. These docs describe the API planned for **0.1.0**. Implemented and
-unit-tested today: [query parsing](./querying.md), the [response envelope](./response-format.md) and
-[section naming](./defining-cruds.md#section-name-and-url). Pages for features that are not built yet
-are marked **Planned**. See the [roadmap](./roadmap.md).
+:::note Version 0.1
+Everything in these docs is implemented and covered by end-to-end tests on SQLite, except the Redis cache
+and S3 storage adapters, which are built but not yet tested against live services. See the
+[feature list](./features.md).
 :::
 
 ## Why crudman
