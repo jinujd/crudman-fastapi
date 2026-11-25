@@ -1,0 +1,28 @@
+/* crudman brand colours (same purple as crudman-nestjs) */
+:root {
+  --ifm-color-primary: #352d77;
+  --ifm-color-primary-dark: #30296b;
+  --ifm-color-primary-darker: #2d2665;
+  --ifm-color-primary-darkest: #251f53;
+  --ifm-color-primary-light: #3a3183;
+  --ifm-color-primary-lighter: #3d3489;
+  --ifm-color-primary-lightest: #463c9b;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #a59bf0;
+  --ifm-color-primary-dark: #8f83ec;
+  --ifm-color-primary-darker: #8478ea;
+  --ifm-color-primary-darkest: #6253e4;
+  --ifm-color-primary-light: #bbb3f4;
+  --ifm-color-primary-lighter: #c6bff6;
+  --ifm-color-primary-lightest: #e7e4fb;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .navbar__logo img,
+[data-theme='dark'] img[alt='CRUD Man logo'] {
+  filter: invert(1);
+}
