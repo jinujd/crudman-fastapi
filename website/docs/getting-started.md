@@ -25,7 +25,7 @@ Optional extras:
 pip install "crudman-fastapi[uploads,excel]"
 ```
 
-Requires Python 3.10+, FastAPI 0.115+, SQLAlchemy 2.0+ and Pydantic 2.7+.
+Requires Python 3.11+, FastAPI 0.136.3+, SQLAlchemy 2.0+ and Pydantic 2.9+.
 
 ## 1. Define a model
 

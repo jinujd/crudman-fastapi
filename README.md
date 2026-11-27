@@ -77,7 +77,7 @@ pip install crudman-fastapi
 pip install "crudman-fastapi[uploads,images,excel,s3,redis]"
 ```
 
-Requires Python 3.10+, FastAPI 0.115+, SQLAlchemy 2.0+, Pydantic 2.7+.
+Requires Python 3.11+, FastAPI 0.136.3+, SQLAlchemy 2.0+, Pydantic 2.9+.
 
 ## Quick start
 
