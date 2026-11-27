@@ -67,3 +67,4 @@ ListAction(response_handler=lambda result, ctx: {...})     # per action
 | record not found | 404 | 404 |
 | blocked by `on_before_action` | 403 | 403 |
 | database constraint violation (unique column, foreign key) | 409 | 409 |
+| request body, file or bulk import over the size limits | 413 | 413 |

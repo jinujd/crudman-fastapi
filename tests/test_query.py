@@ -88,20 +88,29 @@ def test_per_page_snake_case_alias() -> None:
     assert parse_pagination({"per_page": "15"}).info.per_page == 15
 
 
+ALLOW_DISABLE = PaginationOptions(is_disable_allowed=True)
+
+
 @pytest.mark.parametrize("value", ["false", "0", "no", "FALSE"])
-def test_paginate_flag_disables(value: str) -> None:
-    r = parse_pagination({"paginate": value})
+def test_paginate_flag_disables_when_allowed(value: str) -> None:
+    r = parse_pagination({"paginate": value}, options=ALLOW_DISABLE)
     assert r.disabled is True
     assert r.offset is None and r.limit is None
 
 
-def test_per_page_zero_disables() -> None:
-    assert parse_pagination({"perPage": "0"}).disabled is True
+def test_per_page_zero_disables_when_allowed() -> None:
+    assert parse_pagination({"perPage": "0"}, options=ALLOW_DISABLE).disabled is True
 
 
-def test_disable_not_allowed_keeps_pagination() -> None:
-    r = parse_pagination({"paginate": "false"}, options=PaginationOptions(is_disable_allowed=False))
-    assert r.disabled is False
+def test_disabling_is_off_by_default() -> None:
+    # 0.1.1: clients can no longer dump a whole table unless the section allows it
+    assert parse_pagination({"paginate": "false"}).disabled is False
+    assert parse_pagination({"perPage": "0"}).disabled is False
+
+
+def test_default_max_per_page_is_100() -> None:
+    assert parse_pagination({"perPage": "1000000"}).info.per_page == 100
+    assert parse_pagination({"perPage": "500"}, options=PaginationOptions(max_per_page=None)).info.per_page == 500
 
 
 def test_pagination_turned_off_for_action() -> None:
@@ -133,7 +142,7 @@ def test_renamed_param_names() -> None:
     names = QueryParamNames.from_mapping({"page": "p", "perPage": "pp", "paginate": "pg"})
     r = parse_pagination({"p": "2", "pp": "5"}, names)
     assert (r.info.page, r.info.per_page) == (2, 5)
-    assert parse_pagination({"pg": "false"}, names).disabled
+    assert parse_pagination({"pg": "false"}, names, ALLOW_DISABLE).disabled
 
 
 def test_query_param_names_rejects_unknown_keys() -> None:
@@ -160,7 +169,7 @@ def test_finalize_pagination_last_page() -> None:
 
 
 def test_finalize_pagination_disabled() -> None:
-    info = finalize_pagination(parse_pagination({"paginate": "false"}), total=7, item_count=7)
+    info = finalize_pagination(parse_pagination({"paginate": "false"}, options=ALLOW_DISABLE), total=7, item_count=7)
     assert info.to_dict() == {
         "page": 1,
         "perPage": 7,

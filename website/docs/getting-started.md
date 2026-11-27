@@ -91,8 +91,8 @@ curl -H 'x-content-type: csv' localhost:8000/companies
 
 - Every column can be filtered and sorted.
 - Default sort is `created_at DESC`, then the primary key.
-- 30 items per page; `?paginate=false` returns everything.
-- Keyword search over all columns (minimum 2 characters).
+- 30 items per page, at most 100 (`perPage` above 100 is capped).
+- Keyword search over all readable columns (minimum 2 characters).
 - All relations are loaded and returned.
 - Validation comes from the model: on create `name` is required with at most 150 characters; on
   update every field is optional. Unknown fields are rejected on create and dropped on update.

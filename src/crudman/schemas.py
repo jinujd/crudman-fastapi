@@ -15,7 +15,7 @@ import datetime as dt
 import decimal
 import enum
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
@@ -361,6 +361,7 @@ def serialize(
     alias: str | None = None,
     depth: int = 0,
     max_depth: int = 3,
+    nested_attributes: Callable[[Any], Any] | None = None,
     _seen: set[int] | None = None,
 ) -> dict[str, Any] | None:
     """ORM object → dict. Only loaded attributes are read, so async lazy loads never happen."""
@@ -374,6 +375,9 @@ def serialize(
     keys = [p.key for p in mapper.column_attrs if p.key not in unloaded]
     if depth == 0:
         keys = select_attributes(attributes, keys)
+    elif nested_attributes is not None:
+        # related records follow the read attributes of their own section, so hidden fields stay hidden
+        keys = select_attributes(nested_attributes(mapper.class_), keys)
     out: dict[str, Any] = {}
     for key in keys:
         out[_alias(key, alias)] = _plain(getattr(obj, key))
@@ -386,13 +390,15 @@ def serialize(
                 out[_alias(rel.key, alias)] = None
             elif rel.uselist:
                 out[_alias(rel.key, alias)] = [
-                    serialize(v, alias=alias, depth=depth + 1, max_depth=max_depth, _seen=seen)
+                    serialize(v, alias=alias, depth=depth + 1, max_depth=max_depth,
+                              nested_attributes=nested_attributes, _seen=seen)
                     for v in value
                     if id(v) not in seen
                 ]
             elif id(value) not in seen:
                 out[_alias(rel.key, alias)] = serialize(
-                    value, alias=alias, depth=depth + 1, max_depth=max_depth, _seen=seen
+                    value, alias=alias, depth=depth + 1, max_depth=max_depth,
+                    nested_attributes=nested_attributes, _seen=seen
                 )
     return out
 

@@ -71,7 +71,18 @@ Section(upload={"map": [
 Validator precedence: preset, then global `upload_limits`, then section `upload_defaults.validators`, then
 the rule's own `validators`.
 
-Error types: `required`, `fileSize`, `fileExtension`, `fileMime`, `imageDimensions`, `imageAspect`.
+Error types: `required`, `fileSize`, `fileExtension`, `fileMime`, `fileContent`, `fileKey`, `imageDimensions`,
+`imageAspect`.
+
+Safety rules (0.1.1):
+
+- Image presets check the file's real content (PNG, JPEG, GIF, WebP, AVIF signatures), not only the claimed MIME type.
+- Extensions that can run in a browser or on a server (`.html`, `.svg`, `.js`, `.php`, `.exe`, …) are rejected unless
+  the rule lists them in `allowed_extensions`.
+- File columns (`avatar`, `avatarKey`, `avatarUrl`, blob columns) can only change through an upload. Clients may send
+  back the current value or `null`; anything else returns `fileKey`.
+- Storage keys can never point outside the storage folder, including keys from `key_pattern`.
+- Each file is limited by `CrudmanOptions.max_file_mb` (default 25) before presets apply.
 
 ## Response
 

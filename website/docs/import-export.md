@@ -16,6 +16,9 @@ Ask for CSV or Excel on list or details in any of these ways:
 curl -i -H 'x-content-type: csv' 'localhost:8000/companies?is_active=true'
 ```
 
+Cells that start with `=`, `+`, `-`, `@`, tab or carriage return are escaped (CSV) or stored as plain text (Excel),
+so exported data never runs as a spreadsheet formula.
+
 For lists, the body holds only the rows. Pagination and query details go into headers:
 `X-Pagination-Total`, `X-Pagination-Page`, `X-Pagination-PerPage`, `X-Filters`, `X-Sorting`.
 
@@ -39,6 +42,8 @@ crud_router(Company, actions=["*", "bulk_import", "bulk_delete"])
 | `batch_size` | rows per transaction |
 | `dry_run` | validate only |
 | `stop_on_error` | stop at the first failing row |
+
+Imports are limited to `CrudmanOptions.max_bulk_rows` rows (default 1000); larger imports get HTTP 413.
 
 `POST /companies/bulk/delete` accepts `{"ids": [...]}` or a CSV list of ids.
 

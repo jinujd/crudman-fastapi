@@ -9,7 +9,7 @@
   <br/>
 </p>
 
-> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
+> **Status: 0.1.1 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
 > except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
@@ -205,7 +205,7 @@ Section keys (any of these can also go inside an action block):
 | --- | --- |
 | `relations` / `get_relations(ctx)` | `"*"` (default) · list · `{"include": [...]}` · `{"exclude": [...]}` |
 | `attributes` | `{"read": ..., "write": ...}`, each `"*"` / list / include / exclude |
-| `filters_whitelist`, `sorting_whitelist` | default: all root columns |
+| `filters_whitelist`, `sorting_whitelist` | default: all readable root columns |
 | `order_by` | default sort when the request sends none |
 | `conditions` | fixed `where` added to every query |
 | `keyword`, `keyword_param_name` | keyword search |
@@ -223,8 +223,8 @@ Section keys (any of these can also go inside an action block):
 
 ## List APIs and pagination (quick reference)
 
-- **Pagination:** `page` (default 1), `perPage` (default 30; alias `per_page`), `paginate=false|0|no` or
-  `perPage=0` to return everything (when allowed)
+- **Pagination:** `page` (default 1), `perPage` (default 30, max 100; alias `per_page`). `paginate=false|0|no` or
+  `perPage=0` return everything only when the section sets `pagination={"is_disable_allowed": True}`
 - **Sorting:** `sort.<field>=asc|desc` (repeatable). Default: `created_at DESC`, then primary key
 - **Filters:**
   - Equals: `field=value`
@@ -241,7 +241,6 @@ GET /api/companies?page=2&perPage=20
 GET /api/companies?sort.created_at=desc&sort.name=asc
 GET /api/companies?name.like=air&created_at.between=2024-01-01,2024-12-31
 GET /api/companies?keyword=acme&is_active=true
-GET /api/companies?paginate=false
 ```
 
 Rename any parameter per action:
@@ -371,6 +370,21 @@ against a live server).
   goes into `X-Pagination-Total`, `X-Pagination-Page`, `X-Pagination-PerPage` headers.
 - `x-content-type: excel` returns `.xlsx` (needs the `[excel]` extra).
 - `POST /{section}/bulk/import` (JSON or CSV) and `POST /{section}/bulk/delete`, opt-in via `actions=`.
+
+## Security
+
+0.1.1 fixes issues found in a security review of 0.1.0; upgrade if you use 0.1.0. Highlights:
+
+- Hidden fields stay hidden: they cannot be filtered, sorted or searched, and related records follow their own
+  section's read attributes.
+- Uploads: storage keys cannot leave the storage folder, file columns change only through uploads, image content
+  is verified, and executable/HTML extensions are rejected.
+- Cache keys include the caller's identity; exports escape spreadsheet formulas.
+- Limits: `perPage` max 100, `paginate=false` off by default, `max_body_mb`, `max_file_mb`, `max_bulk_rows`.
+
+By default clients can write every column except the primary key and timestamps, so restrict sensitive columns:
+`attributes={"write": {"exclude": ["role", "is_admin"]}}`. See the
+[security docs](https://jinujd.github.io/crudman-fastapi/docs/security) and [CHANGELOG](https://github.com/jinujd/crudman-fastapi/blob/main/CHANGELOG.md).
 
 ## Coming from crudman-nestjs
 

@@ -32,7 +32,7 @@ from .query import (
 )
 from .registry import Registry, SectionEntry, registry
 from .response import DELETE_PAYLOAD, FormatInput, default_response_formatter
-from .schemas import PydanticValidator, column_keys, columns_of, primary_key_of, serialize
+from .schemas import PydanticValidator, column_keys, columns_of, primary_key_of, select_attributes, serialize
 from .uploads import base_urls, expand_upload_config, process_uploads
 
 WRITE_ACTIONS = {"create", "update", "save"}
@@ -50,8 +50,40 @@ def _truthy(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-async def read_request(request: Request, *, with_body: bool) -> CrudRequest:
-    """Turn a FastAPI/Starlette request into a ``CrudRequest``."""
+def _too_large(what: str, limit_mb: float) -> HTTPException:
+    return HTTPException(413, {"data": None, "success": False, "errors": [
+        _err("tooLarge", f"{what} is larger than the {limit_mb:g} MB limit")]})
+
+
+async def _read_limited(request: Request, limit_bytes: int, limit_mb: float) -> bytes:
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > limit_bytes:
+        raise _too_large("The request body", limit_mb)
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit_bytes:
+            raise _too_large("The request body", limit_mb)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def read_request(
+    request: Request,
+    *,
+    with_body: bool,
+    max_body_mb: float | None = None,
+    max_file_mb: float | None = None,
+) -> CrudRequest:
+    """Turn a FastAPI/Starlette request into a ``CrudRequest``.
+
+    Bodies are read in chunks and stop at ``max_body_mb``; each uploaded file stops at ``max_file_mb``.
+    Defaults come from ``CrudmanOptions``.
+    """
+    opts = registry.options
+    body_mb = opts.max_body_mb if max_body_mb is None else max_body_mb
+    file_mb = opts.max_file_mb if max_file_mb is None else max_file_mb
     headers = {k.lower(): v for k, v in request.headers.items()}
     creq = CrudRequest(
         params=dict(request.path_params),
@@ -64,12 +96,20 @@ async def read_request(request: Request, *, with_body: bool) -> CrudRequest:
         return creq
     ctype = creq.content_type
     if ctype in ("multipart/form-data", "application/x-www-form-urlencoded"):
+        file_limit = int(file_mb * 1024 * 1024)
         form = await request.form()
         for key, value in form.multi_items():
             if isinstance(value, StarletteUploadFile):
-                data = await value.read()
+                chunks: list[bytes] = []
+                size = 0
+                while chunk := await value.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > file_limit:
+                        await form.close()
+                        raise _too_large(f"The file '{value.filename or key}'", file_mb)
+                    chunks.append(chunk)
                 creq.files.setdefault(key, []).append(
-                    UploadedFile(filename=value.filename, content_type=value.content_type, data=data)
+                    UploadedFile(filename=value.filename, content_type=value.content_type, data=b"".join(chunks))
                 )
             elif key in creq.body:
                 prev = creq.body[key]
@@ -77,7 +117,7 @@ async def read_request(request: Request, *, with_body: bool) -> CrudRequest:
             else:
                 creq.body[key] = value
         return creq
-    raw = await request.body()
+    raw = await _read_limited(request, int(body_mb * 1024 * 1024), body_mb)
     creq.raw_body = raw
     if not raw.strip():
         return creq
@@ -108,6 +148,7 @@ class CrudmanService:
         self.default_adapter = SqlAlchemyAdapter()
         self.adapter: Any = self.default_adapter
         self.resolved_deps = dict(resolved_deps or {})
+        self._nested_cache: dict[Any, Any] = {}
         self._rollback_only = False
 
     # ── public API ────────────────────────────────────────────────────────
@@ -386,7 +427,30 @@ class CrudmanService:
         return expand_upload_config(cfg, self.options.upload_response, self.options.default_file_storage)
 
     def _serialize(self, obj: Any, cfg: ActionConfig) -> dict[str, Any] | None:
-        return serialize(obj, cfg.read_attributes(), alias=self.options.field_alias)
+        return serialize(obj, cfg.read_attributes(), alias=self.options.field_alias,
+                         nested_attributes=self._nested_attributes)
+
+    def _nested_attributes(self, model: Any) -> Any:
+        """Readable columns of a related model: the most restrictive read attributes of every section that
+        uses that model (falling back to the global defaults), so a field hidden anywhere stays hidden."""
+        if model in self._nested_cache:
+            return self._nested_cache[model]
+        columns = column_keys(model)
+        specs = [entry.action_config(self.options.defaults, "details").read_attributes()
+                 for entry in self.registry.sections.values() if entry.model is model]
+        if not specs:
+            defaults = self.options.defaults
+            specs = [defaults.read_attributes() if defaults is not None else "*"]
+        allowed = set(columns)
+        for spec in specs:
+            allowed &= set(select_attributes(spec, columns))
+        result = [c for c in columns if c in allowed]
+        self._nested_cache[model] = result
+        return result
+
+    def _readable_columns(self, model: Any, cfg: ActionConfig) -> builtins.list[str]:
+        """Columns a client may see, and therefore filter, sort and search on by default."""
+        return select_attributes(cfg.read_attributes(), column_keys(model))
 
     async def _finish(self, body: Any, cfg: ActionConfig, ctx: HookContext, action: str) -> Any:
         extra: dict[str, Any] = {}
@@ -445,7 +509,8 @@ class CrudmanService:
         spec = cfg.enable_cache
         if isinstance(spec, Mapping) and callable(spec.get("key")):
             return f"{ctx.section}:{ctx.action}:{spec['key'](ctx)}"
-        identity = ctx.identity.get("id") if (cfg.ownership or cfg.required_roles) else None
+        # Always part of the key: results may depend on the caller through conditions or hooks.
+        identity = dict(ctx.identity) if ctx.identity else None
         return default_cache_key(ctx.section, ctx.action, ctx.params, ctx.query, relations, identity)
 
     def _cache_ttl(self, cfg: ActionConfig) -> int | None:
@@ -457,7 +522,7 @@ class CrudmanService:
     async def _list(self, entry: SectionEntry, cfg: ActionConfig, ctx: HookContext) -> CrudResult:
         model = entry.model
         names = cfg.param_names()
-        columns = column_keys(model)
+        columns = self._readable_columns(model, cfg)
         relations = await self._relations(model, cfg, ctx)
 
         cache = self.registry.cache if cfg.enable_cache else None
@@ -681,6 +746,9 @@ class CrudmanService:
     async def _bulk_import(self, entry: SectionEntry, cfg: ActionConfig, ctx: HookContext) -> CrudResult:
         model = entry.model
         rows, opts = self._bulk_rows(ctx)
+        if len(rows) > self.options.max_bulk_rows:
+            return self._error("save", 413, [_err("tooLarge", f"At most {self.options.max_bulk_rows} rows per "
+                                                              "import (CrudmanOptions.max_bulk_rows)")])
         policy = str(opts.get("policy") or "upsert")
         if policy not in BULK_POLICIES:
             return self._error("save", 400, [_err("policy", f"Unknown policy '{policy}'. Use one of "
@@ -771,6 +839,9 @@ class CrudmanService:
             if isinstance(payload, Mapping):
                 payload = payload.get("ids", [])
             ids = list(payload or []) if isinstance(payload, list) else []
+        if len(ids) > self.options.max_bulk_rows:
+            return self._error("delete", 413, [_err("tooLarge", f"At most {self.options.max_bulk_rows} ids per "
+                                                                "request (CrudmanOptions.max_bulk_rows)")])
         deleted, missing = 0, []
         where = await self._where(model, cfg, ctx)
         for ident in ids:
