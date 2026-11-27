@@ -509,7 +509,7 @@ These all behave as in NestJS:
 
 | # | Phase | What gets built | Done when |
 | --- | --- | --- | --- |
-| 0 | Scaffolding ✅ | pyproject (hatchling), uv, ruff, mypy, pytest, GitHub Actions CI (3.10–3.13) | CI is green |
+| 0 | Scaffolding ✅ | pyproject (hatchling), uv, ruff, mypy, pytest, GitHub Actions CI (3.11–3.13) | CI is green |
 | 1 | Core types + query parser | `options.py` (all keys in 3.3, with `common` alias and 3-layer merge), `registry.py` (deep-merge), `context.py`, `query.py` (port of `query-utils.ts`: camel/snake normalisation, `query_param_names`, sort defaults to desc, `per_page=0`/`paginate=false`, `max_per_page`, `is_default_enabled`), `response.py` | `query-utils.test.ts` + `response-formatter.test.ts` ported and passing |
 | 2 | SQLAlchemy adapter | list / details / create / update / delete / save; default sort; `order_by`; `conditions`; relations + `selectinload`; read attributes; keyword with dot paths (depth ≤ 3, `DISTINCT` on joins); uniqueness (or/and, excludes current record, only for fields present in the body); 404 for missing records | `typeorm-adapter.test.ts` ported and passing on aiosqlite |
 | 3 | Validation | model → Pydantic create/update models (types, nullable, length, defaults; PK, server defaults and `created_at`/`updated_at`/`deleted_at` excluded); create rejects unknown fields, update drops them; non-null strings need min length 1 on create; rule-dict → Pydantic converter; write include/exclude | `validator-adapter.test.ts` ported |
