@@ -126,6 +126,7 @@ class ActionConfig(_Base):
     condition_type_for_uniqueness_validation: Literal["or", "and"] | None = None
     required_roles: list[str] | None = None
     ownership: dict[str, str] | None = None
+    auth: Literal["public", "private"] | None = None  # needs CrudmanOptions.auth; decorators override it
 
     on_before_action: Callable[..., Any] | None = None
     on_before_query: Callable[..., Any] | None = None
@@ -245,6 +246,13 @@ class OpenApiOptions(_Base):
     )
 
 
+class AuthOptions(_Base):
+    """How users are authenticated. Routes stay public unless marked ``@Private()`` (or ``default="private"``)."""
+
+    dependency: Callable[..., Any]
+    default: Literal["public", "private"] = "public"
+
+
 class CrudmanOptions(_Base):
     """Global options, passed to ``Crudman.init``."""
 
@@ -265,6 +273,8 @@ class CrudmanOptions(_Base):
     max_body_mb: float = 10  # JSON / CSV / form bodies; larger requests get 413
     max_file_mb: float = 25  # each uploaded file, before upload presets apply
     max_bulk_rows: int = 1000  # rows per bulk import / ids per bulk delete
+    auth: AuthOptions | None = None
+    controllers: list[Any] = Field(default_factory=list)  # controller classes to include on Crudman.init
     route_prefix: str | None = None
     path_style: Literal["as_is", "kebab", "snake", "camel", "pascal"] | None = None
     field_alias: Literal["camel"] | None = None
@@ -326,6 +336,7 @@ __all__ = [
     "ALL_ACTIONS",
     "DEFAULT_ACTIONS",
     "ActionConfig",
+    "AuthOptions",
     "CacheOptions",
     "CrudmanOptions",
     "DeleteAction",
