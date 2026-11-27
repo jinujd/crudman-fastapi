@@ -140,10 +140,47 @@ async def test_custom_routes_with_injection(env: Env) -> None:
         cid = (await c.post("/api/countries", json={"name": "India"})).json()["data"]["id"]
         assert (await c.get(f"/api/countries/{cid}/greeting")).json() == {"msg": "hello India"}
         r = await c.post(f"/api/countries/{cid}/states", json={"name": "Goa"})
+        assert r.status_code == 201  # the route's status_code applies to a returned CrudResult
         assert r.json()["data"]["country_id"] == cid
     op = env.app.openapi()["paths"]["/api/countries/{id}/states"]["post"]  # type: ignore[union-attr]
     assert op["operationId"] == "CountriesController_add_state"
     assert "requestBody" in op
+
+
+async def test_custom_route_status_code_with_crud_result(env: Env) -> None:
+    @Controller("/api/c")
+    @Crud(Country, actions=[])
+    class StatusController:
+        @Post("/created", status_code=201)
+        async def created(self, body: dict[str, Any]) -> CrudResult:
+            return await self.crud.call_action("countries", "create", body=body)
+
+        @Post("/empty", status_code=204)
+        async def empty(self, body: dict[str, Any]) -> CrudResult:
+            return await self.crud.call_action("countries", "create", body=body)
+
+        @Post("/default")
+        async def default(self, body: dict[str, Any]) -> CrudResult:
+            return await self.crud.call_action("countries", "create", body=body)
+
+        @Get("/raw", status_code=201)
+        async def raw(self) -> CrudResult:
+            return CrudResult(response=PlainTextResponse("raw", status_code=202))
+
+    env.app_with(StatusController.router)
+    async with env.client() as c:
+        r = await c.post("/api/c/created", json={"name": "India"})
+        assert r.status_code == 201 and r.json()["data"]["name"] == "India"
+        r = await c.post("/api/c/created", json={})  # validation error keeps crudman's status
+        assert r.status_code == 400 and r.json()["success"] is False
+        r = await c.post("/api/c/created", json={"name": "India"})  # unique column: conflict keeps 409
+        assert r.status_code == 409
+        r = await c.post("/api/c/empty", json={"name": "Peru"})
+        assert r.status_code == 204 and r.content == b""
+        r = await c.post("/api/c/default", json={"name": "Chile"})
+        assert r.status_code == 200  # no status_code given: crudman's status
+        r = await c.get("/api/c/raw")
+        assert r.status_code == 202 and r.text == "raw"  # a wrapped Response is sent unchanged
 
 
 async def test_auth_decorators_on_controller(env: Env) -> None:

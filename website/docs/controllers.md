@@ -116,7 +116,7 @@ async def add_state(self, id: int, body: StateIn):
     return await self.crud.call_action("states", "create", body={"name": body.name, "country_id": id})
 ```
 
-Returning a `CrudResult` sends it as-is.
+Returning a `CrudResult` sends it as the response. A successful result uses the route's `status_code` (201 above); an error keeps crudman's status (400, 404, 409, …).
 
 ## Constructor injection
 

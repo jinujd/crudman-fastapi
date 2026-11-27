@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, TypeVar
 
 from fastapi import APIRouter, Depends, Request
+from starlette.responses import Response
 
 from .auth import ORIGINAL_ATTR, enforce, policy_of, resolve, resolved_signature
 from .context import CrudResult, maybe_await
@@ -235,7 +236,7 @@ def _wants_result(fn: Callable[..., Any]) -> bool:
 
 
 def _custom_endpoint(cls: type, attr: str, obj: Any, factory: Callable[..., Any],
-                     auth: Any) -> Callable[..., Any]:
+                     auth: Any, status_code: int | None = None) -> Callable[..., Any]:
     fn = getattr(obj, ORIGINAL_ATTR, obj)
     sig = resolved_signature(fn)
     params = [p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in list(sig.parameters.values())[1:]
@@ -260,13 +261,23 @@ def _custom_endpoint(cls: type, attr: str, obj: Any, factory: Callable[..., Any]
                 request.state.identity = identity
         out = await maybe_await(fn(instance, **{k: v for k, v in kwargs.items() if k in names}))
         if isinstance(out, CrudResult):
-            return out.to_response()
+            return _with_status(out, status_code)
         return out
 
     endpoint.__signature__ = sig.replace(parameters=[*params, *extra])  # type: ignore[attr-defined]
     endpoint.__name__ = f"{cls.__name__}_{attr}"
     endpoint.__doc__ = fn.__doc__
     return endpoint
+
+
+def _with_status(result: CrudResult, status_code: int | None) -> Response:
+    """A returned ``CrudResult`` as a response. The route's ``status_code=`` applies to a successful result;
+    errors keep crudman's status, and a result that wraps a ready ``Response`` is sent unchanged."""
+    if status_code is None or not result.ok or result.response is not None:
+        return result.to_response()
+    if status_code in (204, 304):  # no body allowed
+        return Response(status_code=status_code, headers=result.headers)
+    return replace(result, status_code=status_code).to_response()
 
 
 def build_router(cls: type) -> APIRouter:
@@ -370,8 +381,8 @@ def build_router(cls: type) -> APIRouter:
         auth = resolve(policy_of(obj), class_policy)
         path = normalize_path(custom.path or "")
         claim(custom.methods, path, f"{cls.__name__}.{attr}")
-        endpoint = _custom_endpoint(cls, attr, obj, factory, auth)
         options = dict(custom.options)
+        endpoint = _custom_endpoint(cls, attr, obj, factory, auth, options.get("status_code"))
         options.setdefault("response_model", None)
         options.setdefault("operation_id", f"{cls.__name__}_{attr}")
         fn = getattr(obj, ORIGINAL_ATTR, obj)

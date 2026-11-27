@@ -9,7 +9,7 @@
   <br/>
 </p>
 
-> **Status: 0.2.1 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
+> **Status: 0.2.2 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
 > except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
