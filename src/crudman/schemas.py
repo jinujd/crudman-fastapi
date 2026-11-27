@@ -22,6 +22,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, create_model
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Mapper
+from sqlalchemy.sql import sqltypes
 
 from .query import to_camel
 
@@ -59,6 +60,10 @@ def mapper_of(model: Any) -> Mapper[Any]:
 
 
 def _python_type(col: Any) -> Any:
+    # JSON columns hold any JSON value (object, list, scalar). SQLAlchemy reports their python_type
+    # differently across versions (dict in 2.0, object in 2.1), so treat them explicitly as "any".
+    if isinstance(col.type, sqltypes.JSON):
+        return Any
     try:
         return col.type.python_type
     except (NotImplementedError, AttributeError):
