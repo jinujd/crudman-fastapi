@@ -66,3 +66,4 @@ ListAction(response_handler=lambda result, ctx: {...})     # per action
 | validation error | 400 | 400 |
 | record not found | 404 | 404 |
 | blocked by `on_before_action` | 403 | 403 |
+| database constraint violation (unique column, foreign key) | 409 | 409 |

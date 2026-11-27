@@ -9,7 +9,7 @@
   <br/>
 </p>
 
-> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite,
+> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
 > except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
@@ -273,6 +273,9 @@ Details, create, update and save return `{ "data": {...}, "errors": [], "success
 { "data": null, "success": false, "errors": [ { "type": "unique", "field": "email", "message": "email must be unique" } ] }
 ```
 
+A database constraint violation (duplicate value in a unique column, missing related record) returns HTTP
+409 with `{"type": "conflict"}` and rolls back the request.
+
 Override the format globally with `CrudmanOptions(response_formatter=fn)` or per action with
 `response_handler=fn`.
 
@@ -410,6 +413,7 @@ uvicorn app.main:app --reload      # http://localhost:8000/docs
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest            # unit + end-to-end tests (SQLite)
+CRUDMAN_TEST_DATABASE_URL=postgresql+asyncpg://localhost/crudman_test pytest   # same suite on PostgreSQL
 ruff check src tests
 mypy src
 cd website && npm install && npm start   # docs at http://localhost:3000

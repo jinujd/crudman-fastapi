@@ -10,6 +10,15 @@ python seed.py                    # optional sample data
 uvicorn app.main:app --reload     # http://localhost:8000/docs
 ```
 
+It uses `./example.db` (SQLite) by default. Any SQLAlchemy async URL works, for example PostgreSQL:
+
+```bash
+pip install asyncpg
+createdb crudman_example
+DATABASE_URL=postgresql+asyncpg://localhost/crudman_example python seed.py
+DATABASE_URL=postgresql+asyncpg://localhost/crudman_example uvicorn app.main:app --reload
+```
+
 Try it:
 
 ```bash

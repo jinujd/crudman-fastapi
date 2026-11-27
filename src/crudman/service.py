@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from fastapi.params import Depends as DependsParam
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.requests import Request
@@ -216,6 +217,17 @@ class CrudmanService:
                 if not creq.nested:
                     await session.rollback()
                 result = self._error(action, 400, [_err("filter", str(exc), exc.field)])
+            except IntegrityError:
+                # A database constraint (unique column, foreign key, NOT NULL) rejected the write.
+                # Nested calls re-raise so the outer request rolls back the whole transaction.
+                if creq.nested:
+                    raise
+                await session.rollback()
+                result = self._error(action, 409, [_err(
+                    "conflict",
+                    "The change conflicts with existing data: a unique value already exists "
+                    "or a related record is missing.",
+                )])
             except Exception:
                 if not creq.nested:
                     await session.rollback()

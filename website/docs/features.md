@@ -4,7 +4,7 @@ title: Feature list
 
 # Feature list
 
-Status key: ✅ built and covered by tests (end-to-end on SQLite) · ⚠️ built, but not tested against a live service.
+Status key: ✅ built and covered by tests (end-to-end on SQLite and PostgreSQL) · ⚠️ built, but not tested against a live service.
 
 ## Defining CRUDs
 - ✅ `crud_router(Model)`: the model is the only required argument; the section name defaults to the table name
@@ -70,12 +70,12 @@ Status key: ✅ built and covered by tests (end-to-end on SQLite) · ⚠️ buil
 - ✅ TTL cache per action with custom keys; per-section invalidation on writes
 - ⚠️ Redis cache adapter (`RedisCache`)
 - ✅ OpenAPI: typed request bodies (json/form/multipart), query params, envelope schemas, tags, operation ids
-- ✅ Error mode `throw_on_error`; `strict_status` (201 on create, 404 on missing)
+- ✅ Error mode `throw_on_error`; `strict_status` (201 on create); 404 on missing records; 409 on database constraint violations
 - ✅ Transactions around writes, so `call_action` inside hooks shares the transaction
 - ✅ Pluggable adapters: `OrmAdapter`, `ValidatorAdapter`, `CacheAdapter`, `FileStorageAdapter`
 
 ## Project
 - ✅ README in the crudman-nestjs style
 - ✅ Docusaurus documentation site (`website/`)
-- ✅ Test suite (pytest): unit tests plus end-to-end tests on SQLite
+- ✅ Test suite (pytest): unit tests plus end-to-end tests on SQLite and PostgreSQL
 - ✅ Runnable example app (`examples/fastapi_sqlalchemy_sqlite`)

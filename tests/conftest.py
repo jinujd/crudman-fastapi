@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
@@ -21,10 +22,16 @@ def _reset_crudman() -> None:
     Crudman.reset()
 
 
+DATABASE_URL = os.environ.get("CRUDMAN_TEST_DATABASE_URL")
+"""Run the suite against another database, e.g.
+``CRUDMAN_TEST_DATABASE_URL=postgresql+asyncpg://localhost/crudman_test pytest``.
+Default: a fresh SQLite file per test."""
+
+
 class Env:
     def __init__(self, tmp_path: Path) -> None:
         self.db_path = tmp_path / "test.db"
-        self.engine = create_async_engine(f"sqlite+aiosqlite:///{self.db_path}")
+        self.engine = create_async_engine(DATABASE_URL or f"sqlite+aiosqlite:///{self.db_path}")
         self.sessionmaker = async_sessionmaker(self.engine, expire_on_commit=False)
         self.tmp_path = tmp_path
         self.app: FastAPI | None = None
@@ -61,6 +68,8 @@ class Env:
 async def env(tmp_path: Path) -> AsyncIterator[Env]:
     e = Env(tmp_path)
     async with e.engine.begin() as conn:
+        if DATABASE_URL:  # shared server database: start every test from empty tables
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield e
     await e.engine.dispose()

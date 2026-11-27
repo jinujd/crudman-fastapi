@@ -1,8 +1,8 @@
-"""Fill example.db with sample data: python seed.py"""
+"""Fill the example database with sample data: python seed.py"""
 
 import asyncio
 
-from app.db import SessionLocal, engine
+from app.db import DATABASE_URL, SessionLocal, engine
 from app.models import Base, Company, Contact, Country, State, Tag, User
 
 
@@ -24,7 +24,7 @@ async def main() -> None:
         ])
         await session.commit()
     await engine.dispose()
-    print("Seeded example.db")
+    print(f"Seeded {DATABASE_URL}")
 
 
 if __name__ == "__main__":
