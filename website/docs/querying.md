@@ -9,18 +9,18 @@ title: Querying
 | Parameter | Default | Notes |
 | --- | --- | --- |
 | `page` | `1` | values below 1 become 1 |
-| `perPage` | `30` | alias `per_page`; capped by `max_per_page` |
-| `paginate` | | `false`, `0` or `no` returns everything (when allowed) |
-| `perPage=0` | | also returns everything |
+| `perPage` | `30` | alias `per_page`; capped by `max_per_page` (default 100) |
+| `paginate` | | `false`, `0` or `no` returns everything, only if the section sets `is_disable_allowed=True` |
+| `perPage=0` | | same as `paginate=false` |
 
 Per-action toggles:
 
 ```python
 ListAction(pagination=Pagination(
     is_pagination_enabled=True,   # False: always return everything
-    is_disable_allowed=True,      # honour paginate=false / perPage=0
+    is_disable_allowed=False,     # True: honour paginate=false / perPage=0 (default False since 0.1.1)
     is_default_enabled=True,      # False: return everything unless page/perPage is sent
-    max_per_page=100,
+    max_per_page=100,             # default 100; None removes the cap
 ))
 ```
 
@@ -49,7 +49,8 @@ GET /companies?sort.created_at=desc&sort.name=asc
 Range values may be numbers or ISO dates (`created_at.min=2024-01-01`). A date-only upper bound
 (`.max` or the end of `.between`) includes that whole day. Unknown operators are ignored; a value that
 cannot be converted to the column type (for example `employees.min=lots`) returns HTTP 400.
-Only whitelisted fields are used; the default whitelist is every root column.
+Only whitelisted fields are used; the default whitelist is every readable root column, so hidden columns cannot
+be used to guess values.
 
 ```text
 GET /companies?is_active=true&name.like=air
@@ -77,7 +78,8 @@ ListAction(keyword=Keyword(
 ))
 ```
 
-Without `searchable_fields`, all root columns are searched. Keyword search is always combined with filters
+Without `searchable_fields`, all readable root columns are searched (columns hidden with `attributes.read` are
+skipped). Keyword search is always combined with filters
 using AND.
 
 ## Renaming parameters

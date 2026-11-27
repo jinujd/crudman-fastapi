@@ -61,7 +61,7 @@ from .schemas import PydanticValidator, generate_rules, rules_to_model, serializ
 from .service import CrudmanService
 from .uploads import PRESETS, LocalStorage, S3Storage
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "DELETE_PAYLOAD",

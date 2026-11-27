@@ -64,7 +64,7 @@ set both and they differ, startup fails.
 | `title`, `description` | OpenAPI schema title and description |
 | `relations` / `get_relations(ctx)` | `"*"` (default), a list, `{"include": [...]}` or `{"exclude": [...]}` |
 | `attributes` | `{"read": ..., "write": ...}`, each `"*"`, a list, include or exclude |
-| `filters_whitelist`, `sorting_whitelist` | default: all root columns |
+| `filters_whitelist`, `sorting_whitelist` | default: all readable root columns |
 | `order_by` | default sort when the request sends none |
 | `conditions` | fixed where clause added to every query |
 | `keyword`, `keyword_param_name` | keyword search |
@@ -84,6 +84,9 @@ set both and they differ, startup fails.
 | `openapi` | `{"enabled": False}` hides the section from the docs; use `crud_router(..., tags=[...])` for tags |
 
 ## Relations
+
+Related records follow the read attributes of their own section, so a field hidden on `users` is also hidden
+in `posts.owner`.
 
 ```python
 relations="*"                                   # default: all relationships, eager-loaded

@@ -124,7 +124,8 @@ async def test_multi_sort_camel_case(env: Env) -> None:
 
 async def test_pagination(env: Env) -> None:
     await env.add(*[Country(name=f"C{i:02d}") for i in range(1, 26)])
-    env.app_with(crud_router(Country, config={"list": {"pagination": {"max_per_page": 20}}}))
+    pagination = {"max_per_page": 20, "is_disable_allowed": True}
+    env.app_with(crud_router(Country, config={"list": {"pagination": pagination}}))
     async with env.client() as c:
         body = (await c.get("/countries?page=2&perPage=10&sort.name=asc")).json()
         assert [r["name"] for r in body["data"]] == [f"C{i:02d}" for i in range(11, 21)]

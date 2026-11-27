@@ -69,12 +69,22 @@ def _headers(rows: Iterable[Mapping[str, Any]]) -> list[str]:
     return seen
 
 
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def escape_formula(value: Any) -> Any:
+    """Neutralise text that a spreadsheet would run as a formula (CSV/formula injection)."""
+    if isinstance(value, str) and value.startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
+
 def _cell(value: Any) -> Any:
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
-    return value
+    return escape_formula(value)
 
 
 def to_csv(rows: list[Any]) -> str:
@@ -82,7 +92,7 @@ def to_csv(rows: list[Any]) -> str:
     headers = _headers(flat)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(headers)
+    writer.writerow([escape_formula(h) for h in headers])
     for row in flat:
         writer.writerow([_cell(row.get(h)) for h in headers])
     return buf.getvalue()
@@ -103,9 +113,14 @@ def to_excel(rows: list[Any]) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "data"
-    ws.append(headers)
+    ws.append([escape_formula(h) for h in headers])
     for row in flat:
         ws.append([_excel_cell(row.get(h)) for h in headers])
+    # openpyxl stores any string starting with "=" as a formula; force every text cell to plain text
+    for ws_row in ws.iter_rows(min_row=1):
+        for cell in ws_row:
+            if isinstance(cell.value, str):
+                cell.data_type = "s"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -135,4 +150,6 @@ def list_headers(body: Mapping[str, Any]) -> dict[str, str]:
     return out
 
 
-__all__ = ["EXCEL_MIME", "flatten", "list_headers", "parse_csv", "requested_format", "to_csv", "to_excel"]
+__all__ = [
+    "EXCEL_MIME", "escape_formula", "flatten", "list_headers", "parse_csv", "requested_format", "to_csv", "to_excel",
+]

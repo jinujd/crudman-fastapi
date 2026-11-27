@@ -71,9 +71,9 @@ class Pagination(_Base):
     """Pagination behaviour for list."""
 
     is_pagination_enabled: bool = True
-    is_disable_allowed: bool = True
+    is_disable_allowed: bool = False  # True honours ?paginate=false / perPage=0 (returns the whole table)
     is_default_enabled: bool = True
-    max_per_page: int | None = None
+    max_per_page: int | None = 100  # None removes the cap
     default_per_page: int = 30
 
     def to_options(self) -> PaginationOptions:
@@ -262,6 +262,9 @@ class CrudmanOptions(_Base):
     file_storages: dict[str, Any] = Field(default_factory=dict)
     upload_limits: dict[str, Any] = Field(default_factory=dict)
     upload_response: UploadResponseOptions = Field(default_factory=UploadResponseOptions)
+    max_body_mb: float = 10  # JSON / CSV / form bodies; larger requests get 413
+    max_file_mb: float = 25  # each uploaded file, before upload presets apply
+    max_bulk_rows: int = 1000  # rows per bulk import / ids per bulk delete
     route_prefix: str | None = None
     path_style: Literal["as_is", "kebab", "snake", "camel", "pascal"] | None = None
     field_alias: Literal["camel"] | None = None

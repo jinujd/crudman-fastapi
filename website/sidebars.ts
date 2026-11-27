@@ -22,6 +22,7 @@ const sidebars: SidebarsConfig = {
       label: 'More features',
       items: ['uploads', 'caching', 'import-export'],
     },
+    'security',
     'migrating-from-nestjs',
     'features',
     'roadmap',

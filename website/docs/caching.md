@@ -16,7 +16,8 @@ Section(
 - The default cache is an in-process TTL cache (`MemoryCache`). To share it between workers, install the
   `redis` extra and pass `CacheOptions(enabled=True, backend=RedisCache(url="redis://..."))`. The Redis
   adapter is not yet tested against a live server.
-- Default key: section, action, path params, query and relations. Override with
+- Default key: section, action, path params, query, relations and the caller's identity (so per-user and
+  per-tenant results are never shared). Override with
   `enable_cache={"key": lambda ctx: ...}`.
 - A cache hit goes through the same output step as a fresh result, so `meta` and export formats are
   consistent.

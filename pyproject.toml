@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "crudman-fastapi"
-version = "0.1.0"
+version = "0.1.1"
 description = "Zero-boilerplate CRUD for FastAPI with SQLAlchemy, Pydantic validation, OpenAPI, uploads, caching and export."
 readme = "README.md"
 license = "MIT"
@@ -22,14 +22,15 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.136.3",
+    "starlette>=1.3.1",  # older versions have known vulnerabilities
     "sqlalchemy[asyncio]>=2.0",
-    "pydantic>=2.7",
+    "pydantic>=2.9",
 ]
 
 [project.optional-dependencies]
-uploads = ["python-multipart>=0.0.9"]
-images = ["Pillow>=10"]
+uploads = ["python-multipart>=0.0.31"]
+images = ["Pillow>=13.0.0"]
 excel = ["openpyxl>=3.1"]
 s3 = ["aioboto3>=13"]
 redis = ["redis>=5"]
@@ -39,9 +40,9 @@ dev = [
     "httpx>=0.27",
     "aiosqlite>=0.20",
     "asyncpg>=0.29",
-    "python-multipart>=0.0.9",
+    "python-multipart>=0.0.31",
     "openpyxl>=3.1",
-    "Pillow>=10",
+    "Pillow>=13.0.0",
     "ruff>=0.6",
     "mypy>=1.10",
 ]
@@ -55,7 +56,7 @@ Issues = "https://github.com/jinujd/crudman-fastapi/issues"
 packages = ["src/crudman"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src/crudman", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
+include = ["/src/crudman", "/tests", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

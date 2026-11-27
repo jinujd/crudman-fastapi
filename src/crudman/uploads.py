@@ -104,13 +104,34 @@ def _join(base: str, key: str) -> str:
     return base.rstrip("/") + "/" + key.lstrip("/")
 
 
+class UnsafeFileKey(ValueError):
+    """A storage key that could escape the storage root (``..``, absolute paths, backslashes)."""
+
+
+_SAFE_EXT = re.compile(r"^\.[a-z0-9]{1,10}$")
+
+
+def safe_key(key: str) -> str:
+    """Validate a storage key: relative, forward slashes only, no ``..`` or empty segments."""
+    if not isinstance(key, str) or not key or len(key) > 512:
+        raise UnsafeFileKey(f"Invalid file key {key!r}")
+    if "\\" in key or key.startswith("/") or any(ord(ch) < 32 for ch in key):
+        raise UnsafeFileKey(f"Invalid file key {key!r}")
+    parts = key.split("/")
+    if any(part in ("", ".", "..") for part in parts) or ":" in parts[0]:
+        raise UnsafeFileKey(f"Invalid file key {key!r}")
+    return key
+
+
 def _ext(filename: str | None, mime: str | None) -> str:
-    if filename and os.path.splitext(filename)[1]:
-        return os.path.splitext(filename)[1].lower()
-    if mime:
+    """A safe, lower-case extension from the filename, else from the MIME type ('' if neither is safe)."""
+    candidate = ""
+    if filename:
+        candidate = os.path.splitext(os.path.basename(filename.replace("\\", "/")))[1].lower()
+    if not candidate and mime:
         guess = mimetypes.guess_extension(mime) or ""
-        return ".jpg" if guess == ".jpe" else guess
-    return ""
+        candidate = ".jpg" if guess == ".jpe" else guess
+    return candidate if _SAFE_EXT.match(candidate) else ""
 
 
 class LocalStorage:
@@ -120,17 +141,30 @@ class LocalStorage:
         self.dest = Path(dest)
         self.public_base_url = public_base_url
 
+    def _path(self, key: str) -> Path:
+        """Absolute path for ``key``; raises :class:`UnsafeFileKey` if it would leave ``dest``."""
+        safe_key(key)
+        root = self.dest.resolve()
+        path = (root / key).resolve()
+        if path != root and root not in path.parents:
+            raise UnsafeFileKey(f"File key {key!r} points outside the storage folder")
+        return path
+
     async def save(self, data: bytes, *, filename: str | None, mime: str | None, key: str | None = None) -> SavedFile:
         key = key or f"{uuid.uuid4().hex}{_ext(filename, mime)}"
-        path = self.dest / key
+        path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return SavedFile(key=key, url=self.url_for(key), mime=mime, size=len(data))
 
     async def delete(self, key: str) -> None:
         try:
-            (self.dest / key).unlink()
-        except FileNotFoundError:
+            path = self._path(key)
+        except UnsafeFileKey:
+            return  # never delete anything outside the storage folder
+        try:
+            path.unlink()
+        except (FileNotFoundError, IsADirectoryError):
             pass
 
     def url_for(self, key: str) -> str | None:
@@ -156,13 +190,19 @@ class S3Storage:
 
     async def save(self, data: bytes, *, filename: str | None, mime: str | None,
                    key: str | None = None) -> SavedFile:  # pragma: no cover - needs S3
-        key = self.prefix + (key or f"{uuid.uuid4().hex}{_ext(filename, mime)}")
+        key = self.prefix + safe_key(key or f"{uuid.uuid4().hex}{_ext(filename, mime)}")
         async with self._session().client("s3", **self.client_kwargs) as client:
             await client.put_object(Bucket=self.bucket, Key=key, Body=data,
                                     ContentType=mime or "application/octet-stream")
         return SavedFile(key=key, url=self.url_for(key), mime=mime, size=len(data))
 
     async def delete(self, key: str) -> None:  # pragma: no cover - needs S3
+        try:
+            safe_key(key)
+        except UnsafeFileKey:
+            return
+        if self.prefix and not key.startswith(self.prefix):
+            return  # only delete objects this storage created
         async with self._session().client("s3", **self.client_kwargs) as client:
             await client.delete_object(Bucket=self.bucket, Key=key)
 
@@ -261,6 +301,30 @@ def _avatar_errors(field: str, data: bytes) -> list[dict[str, Any]]:
     return errors
 
 
+# Extensions that browsers or servers may execute when served from your domain. They are rejected unless a
+# rule lists them explicitly in ``allowed_extensions``.
+DANGEROUS_EXTENSIONS = {
+    ".html", ".htm", ".xhtml", ".shtml", ".svg", ".svgz", ".xml", ".js", ".mjs", ".css", ".php", ".phtml",
+    ".php3", ".php4", ".php5", ".phar", ".jsp", ".jspx", ".asp", ".aspx", ".cgi", ".pl", ".py", ".rb", ".sh",
+    ".bash", ".bat", ".cmd", ".exe", ".dll", ".com", ".msi", ".jar", ".swf", ".hta",
+}
+
+
+def sniff_image(data: bytes) -> str | None:
+    """The image MIME type from the file's first bytes, or ``None`` if it is not a known image format."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[4:12] in (b"ftypavif", b"ftypavis"):
+        return "image/avif"
+    return None
+
+
 def _check(field: str, item: _Item, rules: Mapping[str, Any]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     max_mb = rules.get("max_size_mb")
@@ -274,10 +338,20 @@ def _check(field: str, item: _Item, rules: Mapping[str, Any]) -> list[dict[str, 
         if ext not in exts:
             errors.append({"type": "fileExtension", "field": field,
                            "message": f"Invalid extension. Allowed: {', '.join(exts)}"})
+    ext = _ext(item.filename, item.mime)
+    if ext in DANGEROUS_EXTENSIONS and ext not in exts:
+        errors.append({"type": "fileExtension", "field": field,
+                       "message": f"Files with the {ext} extension are not allowed"})
     mimes = [m.lower() for m in rules.get("allowed_mime_types") or []]
     if mimes and (item.mime or "").lower() not in mimes:
         errors.append({"type": "fileMime", "field": field,
                        "message": f"Invalid MIME type. Allowed: {', '.join(mimes)}"})
+    if mimes and all(m.startswith("image/") for m in mimes) and not errors:
+        # The client's MIME type is only a claim: check the bytes really are one of the allowed images.
+        actual = sniff_image(item.data)
+        if actual not in mimes:
+            errors.append({"type": "fileContent", "field": field,
+                           "message": "File content does not match an allowed image type"})
     if rules.get("avatar") and not errors:
         errors.extend(_avatar_errors(field, item.data))
     return errors
@@ -287,6 +361,16 @@ def _check(field: str, item: _Item, rules: Mapping[str, Any]) -> list[dict[str, 
 class UploadOutcome:
     errors: list[dict[str, Any]]
     replaced_keys: list[tuple[str, str]]  # (storage name, old key) to delete after a successful update
+
+
+def target_columns(rule: UploadMap) -> list[str]:
+    """Columns an upload rule writes to."""
+    target = rule.target_field
+    if rule.storage_mode == "filename_in_field" or isinstance(target, str):
+        return [target if isinstance(target, str) else rule.source_field]
+    if isinstance(target, Mapping):
+        return [str(v) for k, v in target.items() if k in ("key", "url", "keys", "urls", "blob", "mime") and v]
+    return [rule.source_field]
 
 
 async def process_uploads(
@@ -300,7 +384,11 @@ async def process_uploads(
     existing: Mapping[str, Any] | None,
     section: str,
 ) -> UploadOutcome:
-    """Validate and store uploads, writing results into ``body``."""
+    """Validate and store uploads, writing results into ``body``.
+
+    Columns that an upload rule writes (file keys, URLs, blobs) can only change through an upload: a client may
+    send back the current value or ``null`` to clear it, but cannot point it at an arbitrary key.
+    """
     errors: list[dict[str, Any]] = []
     replaced: list[tuple[str, str]] = []
     for rule in rules:
@@ -327,6 +415,16 @@ async def process_uploads(
             if (is_create and not rule.is_array and rule.storage_mode in ("filename", "filename_in_field")
                     and raw in (None, "")):
                 errors.append({"type": "required", "field": field, "message": f"The {field} field is required."})
+            for column in target_columns(rule):
+                if column not in body:
+                    continue
+                value = body[column]
+                unchanged = existing is not None and value == existing.get(column)
+                if value in (None, "", []) or unchanged:
+                    continue
+                body.pop(column, None)
+                errors.append({"type": "fileKey", "field": column,
+                               "message": f"The {column} field can only be set by uploading a file."})
             continue
         effective = {**PRESETS.get(rule.type_hint or "", {}), **_norm_validators(global_limits),
                      **_norm_validators(rule.validators)}
@@ -337,6 +435,8 @@ async def process_uploads(
         if not rule.is_array:
             items = items[:1]
         body.pop(field, None)  # the raw upload is replaced by the stored result below
+        for column in target_columns(rule):
+            body.pop(column, None)  # client values never mix with upload results
 
         if rule.storage_mode in ("filename", "filename_in_field"):
             storage = storages.get(rule.storage or "")
@@ -346,12 +446,18 @@ async def process_uploads(
                     "and default_file_storage (or upload_defaults={'storage': ...})."
                 )
             saved = []
-            for it in items:
-                key = None
-                if rule.key_pattern is not None:
-                    key = rule.key_pattern(section=section, field=field, original_name=it.filename,
-                                           ext=_ext(it.filename, it.mime), uuid=uuid.uuid4().hex)
-                saved.append(await storage.save(it.data, filename=it.filename, mime=it.mime, key=key))
+            try:
+                for it in items:
+                    key = None
+                    if rule.key_pattern is not None:
+                        key = safe_key(rule.key_pattern(
+                            section=section, field=field, original_name=os.path.basename(it.filename or ""),
+                            ext=_ext(it.filename, it.mime), uuid=uuid.uuid4().hex,
+                        ))
+                    saved.append(await storage.save(it.data, filename=it.filename, mime=it.mime, key=key))
+            except UnsafeFileKey as exc:
+                errors.append({"type": "fileKey", "field": field, "message": str(exc)})
+                continue
             target = rule.target_field
             if rule.storage_mode == "filename_in_field" or isinstance(target, str):
                 tf = target if isinstance(target, str) else field
@@ -411,6 +517,10 @@ __all__ = [
     "LocalStorage",
     "S3Storage",
     "SavedFile",
+    "UnsafeFileKey",
+    "safe_key",
+    "sniff_image",
+    "target_columns",
     "UploadOutcome",
     "base_urls",
     "expand_upload_config",

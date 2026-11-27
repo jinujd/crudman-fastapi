@@ -130,9 +130,9 @@ class PaginationOptions:
     """Per-action pagination behaviour (``pagination=`` in a section)."""
 
     is_pagination_enabled: bool = True
-    is_disable_allowed: bool = True
+    is_disable_allowed: bool = False
     is_default_enabled: bool = True
-    max_per_page: int | None = None
+    max_per_page: int | None = 100
     default_per_page: int = 30
 
 
