@@ -28,7 +28,7 @@ That single call gives you:
 Plus OpenAPI docs, validation generated from your model, and CSV / Excel export.
 
 :::note Version 0.1
-Everything in these docs is implemented and covered by end-to-end tests on SQLite, except the Redis cache
+Everything in these docs is implemented and covered by end-to-end tests on SQLite and PostgreSQL, except the Redis cache
 and S3 storage adapters, which are built but not yet tested against live services. See the
 [feature list](./features.md).
 :::

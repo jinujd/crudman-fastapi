@@ -1,7 +1,7 @@
 <h1 align="center" style="color:#352D77">crudman-fastapi</h1>
 
 <p align="center">
-  <img src="docs/assets/crudman-logo.svg" alt="CRUD Man Logo" width="140" />
+  <img src="https://raw.githubusercontent.com/jinujd/crudman-fastapi/main/docs/assets/crudman-logo.svg" alt="CRUD Man Logo" width="140" />
   <br/>
   <sub style="color:#3F4C70">Minimal, adapter-driven CRUD layer for <strong>FastAPI</strong> + <strong>SQLAlchemy</strong>.</sub>
   <br/>
@@ -9,7 +9,7 @@
   <br/>
 </p>
 
-> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite,
+> **Status: 0.1.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
 > except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
@@ -273,6 +273,9 @@ Details, create, update and save return `{ "data": {...}, "errors": [], "success
 { "data": null, "success": false, "errors": [ { "type": "unique", "field": "email", "message": "email must be unique" } ] }
 ```
 
+A database constraint violation (duplicate value in a unique column, missing related record) returns HTTP
+409 with `{"type": "conflict"}` and rolls back the request.
+
 Override the format globally with `CrudmanOptions(response_formatter=fn)` or per action with
 `response_handler=fn`.
 
@@ -384,7 +387,7 @@ against a live server).
 ## Example app
 
 A runnable FastAPI + SQLAlchemy + SQLite app lives in
-[`examples/fastapi_sqlalchemy_sqlite`](examples/fastapi_sqlalchemy_sqlite):
+[`examples/fastapi_sqlalchemy_sqlite`](https://github.com/jinujd/crudman-fastapi/tree/main/examples/fastapi_sqlalchemy_sqlite):
 
 ```bash
 cd examples/fastapi_sqlalchemy_sqlite
@@ -410,6 +413,7 @@ uvicorn app.main:app --reload      # http://localhost:8000/docs
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest            # unit + end-to-end tests (SQLite)
+CRUDMAN_TEST_DATABASE_URL=postgresql+asyncpg://localhost/crudman_test pytest   # same suite on PostgreSQL
 ruff check src tests
 mypy src
 cd website && npm install && npm start   # docs at http://localhost:3000

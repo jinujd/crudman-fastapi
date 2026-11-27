@@ -170,3 +170,10 @@ async def test_custom_validator_adapter(env: Env) -> None:
     async with env.client() as c:
         assert (await c.post("/companies", json={"name": "acme"})).json()["errors"][0]["type"] == "upper"
         assert (await c.post("/companies", json={"name": "ACME"})).json()["data"]["name"] == "ACME"
+
+
+def test_json_columns_accept_any_json() -> None:
+    from .models import Profile
+
+    rule = generate_rules(Profile, is_update=False)["photos"]
+    assert rule["type"] == "any"
