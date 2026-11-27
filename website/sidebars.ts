@@ -5,6 +5,7 @@ const sidebars: SidebarsConfig = {
     'intro',
     'getting-started',
     'defining-cruds',
+    'controllers',
     {
       type: 'category',
       label: 'Configuration',
@@ -15,7 +16,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Extending',
       collapsed: false,
-      items: ['hooks', 'context', 'custom-routes', 'access-control'],
+      items: ['authentication', 'access-control', 'hooks', 'context', 'custom-routes'],
     },
     {
       type: 'category',

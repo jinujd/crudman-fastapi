@@ -374,6 +374,9 @@ def build_router(cls: type) -> APIRouter:
         options = dict(custom.options)
         options.setdefault("response_model", None)
         options.setdefault("operation_id", f"{cls.__name__}_{attr}")
+        fn = getattr(obj, ORIGINAL_ATTR, obj)
+        doc = (inspect.getdoc(fn) or "").strip().splitlines()
+        options.setdefault("summary", doc[0] if doc else attr.replace("_", " ").capitalize())
         options.setdefault("name", f"{cls.__name__}_{attr}")
         router.add_api_route(path, endpoint, methods=list(custom.methods), **options)
 

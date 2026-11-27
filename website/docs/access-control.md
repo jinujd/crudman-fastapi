@@ -4,7 +4,11 @@ title: Access control
 
 # Access control
 
-crudman-nestjs declares these options but never enforces them; crudman-fastapi does.
+Authentication (who is signed in) is configured with `AuthOptions` and the `@Private` / `@Roles` / `@Public`
+decorators: see [Authentication](./authentication.md). This page covers authorisation on top of it: section-level
+roles and row ownership. crudman-nestjs declares these options but never enforces them; crudman-fastapi does.
+
+With `AuthOptions`, the identity comes from your auth dependency and `identity_accessor` isn't needed.
 
 ```python
 CrudmanOptions(

@@ -9,7 +9,7 @@
   <br/>
 </p>
 
-> **Status: 0.1.1 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
+> **Status: 0.2.0 (alpha).** Everything below is implemented and covered by end-to-end tests on SQLite and PostgreSQL,
 > except the Redis cache and S3 storage adapters, which are built but not yet tested against live services.
 
 > Creating CRUD is so simple. This is a complete Companies CRUD:
@@ -31,6 +31,31 @@ That gives you (the path comes from `Company.__tablename__`):
 
 Plus OpenAPI docs at `/docs`, validation generated from your model, and CSV / Excel export
 (`x-content-type: csv` or `excel`).
+
+Or define routes with decorators, like crudman-nestjs, and switch auth on per route:
+
+```python
+from fastapi import Request
+from crudman import Controller, Crud, CrudDelete, CrudList, Get, Private, Public, Roles
+
+@Controller("/api/companies")
+@Private()                               # signed-in users only...
+@Crud(Company)                           # list, details, create, update, delete
+class CompaniesController:
+    @Public()                            # ...except the list
+    @CrudList()
+    async def list(self): ...
+
+    @Roles("admin")                      # admins only
+    @CrudDelete()
+    async def remove(self): ...
+
+    @Get("/{id}/summary")                # your own route
+    async def summary(self, id: int, request: Request):
+        return (await self.crud.details("companies", request)).body
+
+app.include_router(CompaniesController.router)
+```
 
 crudman-fastapi is the Python port of [crudman-nestjs](https://github.com/jinujd/crudman-nestjs). The HTTP
 contract (query parameters, response envelope, headers) is identical, so the same front-end works against
@@ -165,6 +190,58 @@ app.include_router(
 ```
 
 Extra endpoints are opt-in: `actions=["*", "save", "bulk_import", "bulk_delete"]`.
+
+## Controllers (decorators)
+
+Routes can be defined on a class with decorators instead of `crud_router(...)`. Both styles use the same engine and
+section settings.
+
+| Decorator | Meaning |
+| --- | --- |
+| `@Controller(prefix, tags=None, dependencies=None)` | URL prefix for the class |
+| `@Crud(Model, section=None, config=None, path=None, actions=None)` | Register a section and generate its routes (`actions=[]`: only decorated methods) |
+| `@CrudList(path=None, section=None)`, `@CrudDetails`, `@CrudCreate`, `@CrudUpdate`, `@CrudDelete`, `@CrudSave`, `@CrudBulkImport`, `@CrudBulkDelete` | Place or override a generated route. An empty body lets crudman handle it; a `result: CrudResult` parameter receives the result to change |
+| `@Get(path)`, `@Post`, `@Put`, `@Patch`, `@Delete` | Custom routes with normal FastAPI parameters; `self.crud` is the service |
+
+```python
+@Controller("/api/companies")
+@Crud(Company, config=companies)
+class CompaniesController:
+    def __init__(self, mailer: Mailer = Depends(get_mailer)):   # constructor injection
+        self.mailer = mailer
+
+    @CrudDetails("/{id}/full")                                 # new path for a generated route
+    async def details(self, result: CrudResult) -> CrudResult:
+        result.body["data"]["display"] = result.body["data"]["name"].upper()
+        return result
+
+Crudman.init(app, CrudmanOptions(session_dependency=get_session, controllers=[CompaniesController]))
+```
+
+## Authentication
+
+Routes are **public by default**. Tell crudman how to find the user, then mark routes with `@Private()`:
+
+```python
+async def current_user(creds = Depends(HTTPBearer(auto_error=False))):
+    user = decode_jwt(creds.credentials) if creds else None
+    if user is None:
+        raise HTTPException(401)
+    return {"id": user.id, "role": user.role}        # becomes ctx.identity
+
+Crudman.init(app, CrudmanOptions(session_dependency=get_session, auth=AuthOptions(dependency=current_user)))
+```
+
+| Decorator | Meaning |
+| --- | --- |
+| `@Private()` | signed-in user required (401) |
+| `@Roles("admin")` | signed in and one of the roles (403); implies `@Private()` |
+| `@Public()` | no auth; opens one route inside a `@Private` controller |
+
+They work on controller classes, controller methods and plain FastAPI routes. Without decorators:
+`crud_router(Company, auth="private", public=["list"], roles={"delete": ["admin"]})`, or section config `auth`.
+`AuthOptions(dependency=..., default="private")` protects everything except `@Public()` routes. Private routes show
+a lock and the Authorize button in Swagger.
 
 ## Sections
 
@@ -390,9 +467,12 @@ By default clients can write every column except the primary key and timestamps,
 
 | crudman-nestjs | crudman-fastapi |
 | --- | --- |
-| `@UseCrud({ sections: { companies: { model: Company } } })` + `CrudControllerBase('companies')` | `crud_router(Company)` |
+| `@Controller('api/companies')` | `@Controller("/api/companies")` |
+| `@UseCrud({ sections: { companies: { model: Company } } })` + `CrudControllerBase('companies')` | `@Crud(Company)` on the class, or `crud_router(Company)` |
+| `@CrudList('companies')` on a controller method | `@CrudList()` |
+| guards (`@UseGuards(...)`) | `@Private()`, `@Roles(...)`, `@Public()` |
 | `CrudmanModule.forRoot({...})` | `Crudman.init(app, CrudmanOptions(...))` |
-| `@CrudList('companies')` | `@crud.list("companies")` |
+| `@CrudList('companies')` on a function | `@crud.list("companies")` |
 | `filtersWhitelist`, `onBeforeAction`, … | `filters_whitelist`, `on_before_action`, … |
 | `onBeforeQuery(findOptions, ...)` | `on_before_query(select_stmt, ctx)` |
 | fastest-validator rules | Pydantic, or the same rule dicts in `get_final_validation_rules` |

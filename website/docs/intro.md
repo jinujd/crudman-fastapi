@@ -44,5 +44,6 @@ and S3 storage adapters, which are built but not yet tested against live service
 ## Next steps
 
 - [Getting started](./getting-started.md)
-- [Defining CRUDs](./defining-cruds.md)
+- [Defining CRUDs](./defining-cruds.md) or [Controllers](./controllers.md) (decorators)
+- [Authentication](./authentication.md)
 - [Feature list](./features.md)

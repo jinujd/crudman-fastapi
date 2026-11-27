@@ -338,3 +338,24 @@ def test_details_route_needs_path_param() -> None:
 
     with pytest.raises(CrudmanConfigError, match="needs a path parameter"):
         _ = X.router
+
+
+def test_custom_route_summary_from_docstring_or_name() -> None:
+    @Controller("/x")
+    class X:
+        @Get("/a")
+        async def first_thing(self) -> None:
+            """Show the first thing.
+
+            More text."""
+
+        @Get("/b")
+        async def second_thing(self) -> None: ...
+
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    app.include_router(X.router)
+    spec = app.openapi()["paths"]
+    assert spec["/x/a"]["get"]["summary"] == "Show the first thing."
+    assert spec["/x/b"]["get"]["summary"] == "Second thing"

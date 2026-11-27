@@ -31,9 +31,10 @@ This page lists the protections and the settings that affect them.
   # or set ownership={"field": "tenant_id"} so crudman fills it from the identity
   ```
 
-- **Authentication.** crudman does not authenticate users. Protect routers with FastAPI dependencies
-  (`crud_router(..., dependencies=[Depends(require_user)])`), and use `required_roles` and `ownership` for
-  authorisation.
+- **Authentication.** Routes are public by default. Configure `AuthOptions(dependency=current_user)` and mark
+  routes with `@Private()` / `@Roles(...)` (or `crud_router(auth="private")`), or use
+  `AuthOptions(..., default="private")` so everything is protected unless marked `@Public()`. See
+  [Authentication](./authentication.md). Use `ownership` for per-row access.
 - **Serving uploads.** Serve uploaded files from a separate domain or with `Content-Disposition: attachment` if users
   can upload documents.
 

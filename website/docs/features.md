@@ -7,6 +7,7 @@ title: Feature list
 Status key: ✅ built and covered by tests (end-to-end on SQLite and PostgreSQL) · ⚠️ built, but not tested against a live service.
 
 ## Defining CRUDs
+- ✅ NestJS-style controllers: `@Controller`, `@Crud(Model)`, `@CrudList()`/`@CrudDetails()`/… overrides with optional result post-processing, `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` custom routes, constructor injection with `Depends`
 - ✅ `crud_router(Model)`: the model is the only required argument; the section name defaults to the table name
 - ✅ `crud_router(Model, "name", config)`: optional section name and settings, positional or keyword
 - ✅ Multi-model routers: `crud_router([Tag, Category, (Company, "orgs", cfg)])`
@@ -55,6 +56,7 @@ Status key: ✅ built and covered by tests (end-to-end on SQLite and PostgreSQL)
 - ✅ `custom_implementation` to fully override an action
 
 ## Access control
+- ✅ Per-route auth, public by default: `@Private()`, `@Roles(...)`, `@Public()` on controllers, methods and plain FastAPI routes; `AuthOptions(dependency=..., default=...)`; `crud_router(auth=, private=, public=, roles=)`; section `auth`
 - ✅ `identity_accessor`, `role_checker`, `required_roles`, `ownership` (enforced, unlike in NestJS)
 
 ## Uploads

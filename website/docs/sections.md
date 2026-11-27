@@ -72,6 +72,7 @@ set both and they differ, startup fails.
 | `record_selection_field` | default `"id"`; also names the path parameter |
 | `fields_for_uniqueness_validation` | fields that must be unique |
 | `condition_type_for_uniqueness_validation` | `"or"` (default) or `"and"` |
+| `auth` | `"public"` or `"private"` for the section or one action; [decorators](./authentication.md) override it |
 | `required_roles`, `ownership` | [access control](./access-control.md) |
 | `on_before_action`, `on_before_query`, `on_after_fetch`, `on_before_validate`, `get_final_validation_rules`, `on_after_validate`, `on_after_action` | [hooks](./hooks.md) |
 | `context` | [per-request context](./context.md) |
