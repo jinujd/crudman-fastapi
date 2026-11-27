@@ -95,7 +95,7 @@ from .schemas import PydanticValidator, generate_rules, rules_to_model, serializ
 from .service import CrudmanService
 from .uploads import PRESETS, LocalStorage, S3Storage
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 __all__ = [
     "ActionConfig",

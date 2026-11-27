@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-11-27
+
+### Fixed
+- A custom controller route (`@Get`, `@Post`, …) that returns a `CrudResult` now uses the route's `status_code=`
+  for a successful result. Before, the result's own 200 was sent, so the documented
+  `@Post("/{id}/states", status_code=201)` example answered 200. Errors (400, 404, 409, …) keep crudman's status,
+  `204` / `304` are sent without a body, and a `CrudResult` that wraps a ready `Response` is sent unchanged.
+
 ## [0.2.1] - 2026-11-27
 
 ### Added
