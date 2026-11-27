@@ -12,7 +12,14 @@ Defining a CRUD always takes four steps:
 3. **Section:** what the CRUD does (optional; defaults cover most cases).
 4. **Mount:** where the routes live.
 
-Steps 1 and 2 are covered in [Getting started](./getting-started.md). This page covers mounting.
+Steps 1 and 2 are covered in [Getting started](./getting-started.md). This page covers mounting with
+`crud_router(...)`. To define routes with decorators instead (`@Controller`, `@Crud`, `@CrudList`, `@Get`, …),
+like crudman-nestjs, see [Controllers](./controllers.md). Both styles share the same engine and settings.
+
+| Style | Looks like | Good for |
+| --- | --- | --- |
+| `crud_router(Model)` | one function call per resource | resources that only need the standard routes |
+| [`@Controller` + `@Crud`](./controllers.md) | a class with decorated methods | per-route auth, custom paths, extra endpoints next to the CRUD |
 
 ## `crud_router`
 
@@ -107,16 +114,21 @@ app.include_router(
 
 ## Class-based controllers
 
-For people coming from the NestJS version:
+Decorator controllers are described on the [Controllers](./controllers.md) page:
 
 ```python
-from crudman import CrudController
-
-class CompaniesController(CrudController, model=Company):
+@Controller("/api/companies")
+@Crud(Company)
+class CompaniesController:
     pass
-
-app.include_router(CompaniesController.router, prefix="/api")
 ```
+
+The older subclass form still works: `class CompaniesController(CrudController, model=Company): pass`.
+
+## Auth
+
+Routes are public by default. `crud_router(Company, auth="private")`, `private=[...]`, `public=[...]` and
+`roles={...}` protect them; see [Authentication](./authentication.md).
 
 ## Organising sections in files
 

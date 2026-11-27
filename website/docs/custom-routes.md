@@ -4,6 +4,11 @@ title: Custom routes
 
 # Custom routes
 
+:::tip
+With [controllers](./controllers.md), custom routes are methods decorated with `@Get`, `@Post`, … next to the
+generated CRUD routes, and `self.crud` is the service. This page covers the function-based style.
+:::
+
 ## Register without auto routes
 
 `crud.register` takes the same arguments as `crud_router` but mounts nothing:
@@ -76,3 +81,16 @@ async def create_country_first(ctx):                    # on_before_action of th
 
 crud_router(State, config={"create": {"on_before_action": create_country_first}})
 ```
+
+## Auth on your own routes
+
+`@Private()`, `@Roles(...)` and `@Public()` work on any FastAPI route function (place them below `@router.get(...)`):
+
+```python
+@router.get("/reports")
+@Roles("manager")
+async def reports(request: Request):
+    return {"by": request.state.identity["id"]}
+```
+
+See [Authentication](./authentication.md).

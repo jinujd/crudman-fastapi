@@ -3,6 +3,24 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-27
+
+### Added
+- **Decorator controllers (NestJS style):** `@Controller(prefix)`, `@Crud(Model, ...)` on a class, method decorators
+  `@CrudList`, `@CrudDetails`, `@CrudCreate`, `@CrudUpdate`, `@CrudDelete`, `@CrudSave`, `@CrudBulkImport`,
+  `@CrudBulkDelete` (place or override generated routes, optional `result: CrudResult` post-processing), and custom
+  routes with `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`. Constructor injection via `Depends` in `__init__`;
+  `self.crud` service; routers built lazily; `CrudmanOptions(controllers=[...])` and `include_controllers()`.
+  Lowercase aliases for every decorator.
+- **Per-route authentication, public by default:** `@Private()`, `@Roles(...)`, `@Public()` on controller classes,
+  methods and plain FastAPI routes. `AuthOptions(dependency=..., default="public" | "private")`: any FastAPI
+  dependency that returns the user; it becomes `ctx.identity`. Also `crud_router(auth=, private=, public=, roles=)`
+  and section config `auth`. 401 when not signed in, 403 for a missing role; Swagger shows the lock on private routes.
+
+### Fixed
+- Custom route and plain-route wrappers resolve string annotations (`from __future__ import annotations`) in the
+  user's module, so body models and injected types work.
+
 ## [0.1.1] - 2026-11-27
 
 Security release. **Everyone using 0.1.0 should upgrade.**

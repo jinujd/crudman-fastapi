@@ -17,5 +17,7 @@ title: Roadmap
 | 8 | Uploads: presets, storage modes, local disk | ✅ (S3 storage built, not tested against S3) |
 | 9 | CSV/Excel export, bulk import/delete | ✅ |
 | 10 | Example app, guides | ✅ |
-| **0.1.0** | **first PyPI release** | next |
+| **0.1.0** | **first PyPI release** | ✅ |
+| 0.1.1 | Security release | ✅ |
+| 0.2.0 | Decorator controllers (`@Controller`, `@Crud`, `@CrudList`, `@Get`…) and per-route auth (`@Private`, `@Public`, `@Roles`) | ✅ |
 | later | Sync sessions, model specs without an ORM class, other ORMs, `video-short` checks, per-row CSV results for bulk import | |

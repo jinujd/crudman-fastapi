@@ -10,11 +10,15 @@ The HTTP contract is the same, so clients do not change. On the server:
 | --- | --- |
 | TypeORM entity | SQLAlchemy 2.0 model |
 | `CrudmanModule.forRoot({...})` | `Crudman.init(app, CrudmanOptions(...))` |
-| `@UseCrud({ sections: { companies: { model: Company } } })` + `CrudControllerBase('companies')` | `crud_router(Company)` |
-| `@Controller('api/companies')` | `include_router(..., prefix="/api")` |
+| `@Controller('api/companies')` | `@Controller("/api/companies")` |
+| `@UseCrud({ sections: { companies: { model: Company } } })` + `CrudControllerBase('companies')` | `@Crud(Company)` on the controller class, or `crud_router(Company)` |
+| `@CrudList('companies')` on a controller method | `@CrudList()` (`section=` when the controller has several) |
+| `@Get(':id/summary')` custom route | `@Get("/{id}/summary")` |
+| guards (`@UseGuards(AuthGuard)`) | `@Private()`, `@Roles("admin")`, `@Public()` with `AuthOptions(dependency=...)` |
+| constructor injection | `__init__(self, svc: Service = Depends(get_service))` |
 | `UseCrud({ models: [Tag, Category] })` + `CrudControllerBase(['tags','categories'])` | `crud_router([Tag, Category])` |
 | section name from the pluralised class name | section name from the table name |
-| `@CrudList('companies')` | `@crud.list("companies")` |
+| `@CrudList('companies')` on a function | `@crud.list("companies")` |
 | `CrudmanService` injection | `Depends(get_crud)` |
 | `callAction(section, action, req, res)` | `call_action(section, action, body=..., params=...)` |
 | camelCase keys (`filtersWhitelist`, `onBeforeAction`) | snake_case keys (`filters_whitelist`, `on_before_action`) |

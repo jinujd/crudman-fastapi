@@ -12,6 +12,8 @@ from fastapi.params import Depends as DependsParam
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
+from .auth import AuthPolicy, ResolvedAuth, crudman_auth, crudman_default_auth, enforce, resolve
+from .context import CrudResult, maybe_await
 from .errors import CrudmanConfigError
 from .naming import resolve_path, section_name_for
 from .options import (
@@ -45,6 +47,19 @@ def get_crud(session: AsyncSession = Depends(crudman_session)) -> CrudmanService
     return CrudmanService(session)
 
 
+async def _no_identity() -> None:
+    return None
+
+
+def include_controllers(app: FastAPI | APIRouter, controllers: Iterable[Any]) -> None:
+    """Include the routers of several controller classes."""
+    for controller in controllers:
+        router = getattr(controller, "router", None)
+        if not isinstance(router, APIRouter):
+            raise CrudmanConfigError(f"{controller!r} is not a controller (no .router)")
+        app.include_router(router)
+
+
 class Crudman:
     """Global setup."""
 
@@ -54,6 +69,14 @@ class Crudman:
         registry.set_options(opts)
         if app is not None and opts.session_dependency is not None:
             app.dependency_overrides[crudman_session] = opts.session_dependency
+        if app is not None and opts.auth is not None:
+            # routes built before init use placeholders; point them at the real dependency
+            app.dependency_overrides[crudman_auth] = opts.auth.dependency
+            app.dependency_overrides[crudman_default_auth] = (
+                opts.auth.dependency if opts.auth.default == "private" else _no_identity
+            )
+        if app is not None and opts.controllers:
+            include_controllers(app, opts.controllers)
         return opts
 
     @staticmethod
@@ -159,8 +182,15 @@ def make_endpoint(
     path_param: str | None = None,
     session_dependency: Callable[..., Any] | None = None,
     name: str | None = None,
+    auth: ResolvedAuth | None = None,
+    instance_dependency: Callable[..., Any] | None = None,
+    after: Callable[..., Any] | None = None,
 ) -> Callable[..., Any]:
-    """Build a FastAPI endpoint function for one section action."""
+    """Build a FastAPI endpoint function for one section action.
+
+    ``auth`` adds the auth dependency (401/403 handling); ``instance_dependency`` + ``after`` let a controller
+    method post-process the result.
+    """
     entry = registry.sections.get(section)
     deps = _context_deps(entry.config if entry else None, action)
     dep_params = {key: f"ctx_{key[0]}_{_ident(key[1])}" for key in deps}
@@ -169,10 +199,25 @@ def make_endpoint(
     async def endpoint(**kwargs: Any) -> Response:
         request: Request = kwargs["request"]
         session: AsyncSession = kwargs["crudman_session_"]
+        identity: dict[str, Any] | None = None
+        if auth is not None:
+            identity = await enforce(auth, kwargs.get("crudman_identity_"))
+            if identity is not None:
+                request.state.identity = identity
         resolved = {key: kwargs[param] for key, param in dep_params.items()}
         svc = CrudmanService(session, resolved_deps=resolved)
         creq = await read_request(request, with_body=with_body)
+        if identity is not None:
+            creq.identity = identity
         result = await svc.run(section, action, creq)
+        if after is not None:
+            out = await maybe_await(after(kwargs.get("crudman_self_"), result))
+            if isinstance(out, Response):
+                return out
+            if isinstance(out, CrudResult):
+                result = out
+            elif out is not None:
+                result.body = out
         return result.to_response()
 
     params = [
@@ -189,10 +234,76 @@ def make_endpoint(
     for key, param_name in dep_params.items():
         params.append(inspect.Parameter(param_name, inspect.Parameter.KEYWORD_ONLY, default=deps[key],
                                         annotation=Any))
+    if auth is not None:
+        params.append(inspect.Parameter("crudman_identity_", inspect.Parameter.KEYWORD_ONLY,
+                                        default=Depends(auth.dependency), annotation=Any))
+    if instance_dependency is not None:
+        params.append(inspect.Parameter("crudman_self_", inspect.Parameter.KEYWORD_ONLY,
+                                        default=Depends(instance_dependency), annotation=Any))
     endpoint.__signature__ = inspect.Signature(params, return_annotation=Response)  # type: ignore[attr-defined]
     endpoint.__name__ = name or f"{_ident(section)}_{action}"
     endpoint.__qualname__ = endpoint.__name__
     return endpoint
+
+
+def route_for(action: str, selection_field: str, update_verb: str) -> tuple[str, list[str]]:
+    """Default path (relative to the section) and HTTP methods of an action."""
+    sel = selection_field
+    return {
+        "list": ("", ["GET"]),
+        "details": (f"/{{{sel}}}", ["GET"]),
+        "create": ("", ["POST"]),
+        "update": (f"/{{{sel}}}", [update_verb.upper()]),
+        "delete": (f"/{{{sel}}}", ["DELETE"]),
+        "save": ("/save", ["POST"]),
+        "bulk_import": ("/bulk/import", ["POST"]),
+        "bulk_delete": ("/bulk/delete", ["POST"]),
+    }[action]
+
+
+def section_auth_policy(cfg: ActionConfig) -> AuthPolicy | None:
+    return AuthPolicy(mode=cfg.auth) if cfg.auth else None
+
+
+def add_crud_route(
+    router: APIRouter,
+    section: str,
+    action: str,
+    *,
+    path: str | None = None,
+    auth_levels: Sequence[AuthPolicy | None] = (),
+    update_method: str | None = None,
+    instance_dependency: Callable[..., Any] | None = None,
+    after: Callable[..., Any] | None = None,
+    name: str | None = None,
+    operation_id: str | None = None,
+) -> None:
+    """Add one CRUD action route to ``router`` (shared by ``crud_router`` and controllers)."""
+    opts = registry.options
+    entry = registry.get(section)
+    cfg = effective_config(opts.defaults, entry.config, action)
+    sel = cfg.selection_field()
+    default_path, methods = route_for(action, sel, update_method or opts.update_method)
+    route_path = default_path if path is None else path
+    path_params = re.findall(r"{(\w+)}", route_path)
+    if action in ("details", "update", "delete") and not path_params:
+        raise CrudmanConfigError(
+            f"Route '{route_path}' for {section}.{action} needs a path parameter such as '/{{{sel}}}'."
+        )
+    auth = resolve(*auth_levels, section_auth_policy(cfg))
+    endpoint = make_endpoint(
+        section, action, path_param=path_params[0] if path_params else None,
+        session_dependency=cfg.session or entry.config.session, name=name, auth=auth,
+        instance_dependency=instance_dependency, after=after,
+    )
+    include = (entry.config.openapi or {}).get("enabled", True) and opts.openapi.enabled
+    router.add_api_route(
+        route_path, endpoint, methods=methods, name=name or f"{section}_{action}",
+        operation_id=operation_id or f"{_ident(section)}_{action}",
+        summary=f"{entry.config.title or section}: {action.replace('_', ' ')}",
+        description=entry.config.description, include_in_schema=include,
+        openapi_extra=_openapi_for(section, entry.model, action, cfg) if include else None,
+    )
 
 
 # ── OpenAPI ───────────────────────────────────────────────────────────────────
@@ -330,6 +441,30 @@ def register_section(model: Any, section: str | None = None, config: Any = None)
     return name
 
 
+def _router_policies(
+    action: str,
+    auth: str | bool | None,
+    public: Sequence[str] | None,
+    private: Sequence[str] | None,
+    roles: Mapping[str, Sequence[str]] | Sequence[str] | None,
+) -> list[AuthPolicy | None]:
+    """crud_router(auth=..., public=[...], private=[...], roles=...) as policies, nearest first."""
+    per_action: AuthPolicy | None = None
+    if isinstance(roles, Mapping) and roles.get(action):
+        per_action = AuthPolicy(mode="private", roles=tuple(roles[action]))
+    elif public and action in public:
+        per_action = AuthPolicy(mode="public")
+    elif private and action in private:
+        per_action = AuthPolicy(mode="private")
+    router_wide: AuthPolicy | None = None
+    if roles is not None and not isinstance(roles, Mapping) and roles:
+        router_wide = AuthPolicy(mode="private", roles=tuple(roles))
+    elif auth is not None:
+        mode = "private" if auth is True or auth == "private" else "public"
+        router_wide = AuthPolicy(mode=mode)  # type: ignore[arg-type]
+    return [per_action, router_wide]
+
+
 def crud_router(
     model: Any,
     section: str | None = None,
@@ -341,14 +476,25 @@ def crud_router(
     path_style: str | None = None,
     update_method: str | None = None,
     dependencies: Sequence[Any] | None = None,
+    auth: str | bool | None = None,
+    public: Sequence[str] | None = None,
+    private: Sequence[str] | None = None,
+    roles: Mapping[str, Sequence[str]] | Sequence[str] | None = None,
 ) -> APIRouter:
     """Build an ``APIRouter`` with CRUD routes for ``model``.
 
     ``section`` defaults to the model's table name; ``path`` defaults to ``/{section}``.
     Pass a list of models (or tuples) to mount several sections in one router.
+
+    Auth (routes are public unless asked): ``auth="private"`` protects every route, ``private=["create"]`` /
+    ``public=["list"]`` pick actions, ``roles={"delete": ["admin"]}`` (or a list for every action) adds roles.
     """
     opts = registry.options
     style = path_style or opts.path_style
+    _check_actions_named("public", public)
+    _check_actions_named("private", private)
+    if isinstance(roles, Mapping):
+        _check_actions_named("roles", list(roles))
     if isinstance(model, (list, tuple)) and not isinstance(model, str):
         if section is not None or config is not None or path is not None:
             raise CrudmanConfigError("With a list of models, give names and settings inside the tuples.")
@@ -356,42 +502,26 @@ def crud_router(
         for entry in model:
             m, name, cfg = _unpack(entry)
             combined.include_router(crud_router(m, name, cfg, actions=actions, path_style=style,
-                                                update_method=update_method))
+                                                update_method=update_method, auth=auth, public=public,
+                                                private=private, roles=roles))
         return combined
 
     name = register_section(model, section, config)
-    entry = registry.get(name)
     prefix = resolve_path(name, path, style, opts.route_prefix)  # type: ignore[arg-type]
     router = APIRouter(prefix=prefix, tags=list(tags or [name]), dependencies=list(dependencies or []))
-    verb = (update_method or opts.update_method).upper()
-    session_dep = entry.config.session
-
     for action in _expand_actions(actions):
-        cfg = effective_config(opts.defaults, entry.config, action)
-        sel = cfg.selection_field()
-        needs_id = action in ("details", "update", "delete")
-        endpoint = make_endpoint(name, action, path_param=sel if needs_id else None,
-                                 session_dependency=cfg.session or session_dep)
-        route_path, methods = {
-            "list": ("", ["GET"]),
-            "details": (f"/{{{sel}}}", ["GET"]),
-            "create": ("", ["POST"]),
-            "update": (f"/{{{sel}}}", [verb]),
-            "delete": (f"/{{{sel}}}", ["DELETE"]),
-            "save": ("/save", ["POST"]),
-            "bulk_import": ("/bulk/import", ["POST"]),
-            "bulk_delete": ("/bulk/delete", ["POST"]),
-        }[action]
-        include = (entry.config.openapi or {}).get("enabled", True) and opts.openapi.enabled
-        router.add_api_route(
-            route_path, endpoint, methods=methods, name=f"{name}_{action}", operation_id=f"{_ident(name)}_{action}",
-            summary=f"{entry.config.title or name}: {action.replace('_', ' ')}",
-            description=entry.config.description, include_in_schema=include,
-            openapi_extra=_openapi_for(name, model, action, cfg) if include else None,
-        )
+        add_crud_route(router, name, action, update_method=update_method,
+                       auth_levels=_router_policies(action, auth, public, private, roles))
     # declared routes that collide ("/save" vs "/{id}" for GET) are ordered: fixed paths first
     router.routes.sort(key=lambda r: "{" in getattr(r, "path", ""))
     return router
+
+
+def _check_actions_named(option: str, names: Sequence[str] | None) -> None:
+    for action in names or []:
+        if action not in ALL_ACTIONS:
+            raise CrudmanConfigError(f"crud_router({option}=...): unknown action '{action}'. "
+                                     f"Use: {', '.join(ALL_ACTIONS)}.")
 
 
 # ── decorators ────────────────────────────────────────────────────────────────

@@ -10,12 +10,23 @@ from typing import Any
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from crudman import CacheOptions, Crudman, CrudmanOptions, CrudmanService, LocalStorage, crud, crud_router, get_crud
+from crudman import (
+    AuthOptions,
+    CacheOptions,
+    Crudman,
+    CrudmanOptions,
+    CrudmanService,
+    LocalStorage,
+    crud,
+    crud_router,
+    get_crud,
+)
 
-from .crud.companies import companies
+from .auth import current_user
+from .controllers import CompaniesController
 from .crud.users import users
 from .db import engine, get_session
-from .models import Base, Category, Company, Country, Profile, State, Tag, User
+from .models import Base, Category, Country, Profile, State, Tag, User
 
 UPLOADS = Path("uploads")
 
@@ -34,13 +45,14 @@ Crudman.init(app, CrudmanOptions(
     cache=CacheOptions(enabled=True, ttl=30),
     default_file_storage="local",
     file_storages={"local": LocalStorage(dest=UPLOADS, public_base_url="http://localhost:8000/uploads")},
+    auth=AuthOptions(dependency=current_user),            # routes stay public unless marked @Private
+    controllers=[CompaniesController],                    # decorator-style routes
 ))
 
 # One line per resource. Paths come from the table names.
 app.include_router(crud_router(Country, actions=["*", "save", "bulk_import", "bulk_delete"]), prefix="/api")
 app.include_router(crud_router(State, config={"list": {"enable_cache": True}}), prefix="/api")
-app.include_router(crud_router(Company, config=companies), prefix="/api")
-app.include_router(crud_router(User, config=users), prefix="/api")
+app.include_router(crud_router(User, config=users, private=["create", "update", "delete"]), prefix="/api")
 app.include_router(crud_router(Profile, config={"uploadable": {"avatar": "image"}}), prefix="/api")
 app.include_router(crud_router([Tag, Category]), prefix="/api/shorthand")
 

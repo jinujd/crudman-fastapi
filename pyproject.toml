@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "crudman-fastapi"
-version = "0.1.1"
+version = "0.2.0"
 description = "Zero-boilerplate CRUD for FastAPI with SQLAlchemy, Pydantic validation, OpenAPI, uploads, caching and export."
 readme = "README.md"
 license = "MIT"
