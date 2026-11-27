@@ -28,6 +28,8 @@ Security release. **Everyone using 0.1.0 should upgrade.**
 - CI and publish workflows run with read-only repository permissions; docs-site npm dependencies patched.
 
 ### Changed (may need action)
+- **Python 3.11+ is required.** Python 3.10 reached end-of-life in October 2026, and the first Pillow release without
+  known advisories (13.0) and current FastAPI releases no longer support it.
 - `perPage` is capped at 100 by default (`pagination={"max_per_page": None}` removes the cap).
 - `?paginate=false` / `perPage=0` are ignored unless a section sets `pagination={"is_disable_allowed": True}`.
 - Filters/sorting on hidden columns need an explicit `filters_whitelist` / `sorting_whitelist` entry.
