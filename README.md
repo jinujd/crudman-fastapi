@@ -1,7 +1,7 @@
 <h1 align="center" style="color:#352D77">crudman-fastapi</h1>
 
 <p align="center">
-  <img src="docs/assets/crudman-logo.svg" alt="CRUD Man Logo" width="140" />
+  <img src="https://raw.githubusercontent.com/jinujd/crudman-fastapi/main/docs/assets/crudman-logo.svg" alt="CRUD Man Logo" width="140" />
   <br/>
   <sub style="color:#3F4C70">Minimal, adapter-driven CRUD layer for <strong>FastAPI</strong> + <strong>SQLAlchemy</strong>.</sub>
   <br/>
@@ -387,7 +387,7 @@ against a live server).
 ## Example app
 
 A runnable FastAPI + SQLAlchemy + SQLite app lives in
-[`examples/fastapi_sqlalchemy_sqlite`](examples/fastapi_sqlalchemy_sqlite):
+[`examples/fastapi_sqlalchemy_sqlite`](https://github.com/jinujd/crudman-fastapi/tree/main/examples/fastapi_sqlalchemy_sqlite):
 
 ```bash
 cd examples/fastapi_sqlalchemy_sqlite

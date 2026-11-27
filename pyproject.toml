@@ -54,6 +54,9 @@ Issues = "https://github.com/jinujd/crudman-fastapi/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/crudman"]
 
+[tool.hatch.build.targets.sdist]
+include = ["/src/crudman", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
